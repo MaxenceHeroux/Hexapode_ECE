@@ -399,7 +399,7 @@ export ROS_LOCALHOST_ONLY=0
 | `apt` bloqué par un verrou | mises à jour automatiques | §6.2 |
 | Coupures de quelques secondes | lien physique | §4.3 |
 | Heure fausse sur la Pi | pas de RTC + pas d'internet | rétablir internet, `timedatectl` |
-| `Dyna_test` : *Failed to open the port* | adaptateur U2D2 non branché / autre nom de port | `ls /dev/ttyUSB* /dev/ttyACM*`, adapter `DEVICENAME` (§13) |
+| `Dyna_test` : *Failed to open the port* | U2D2 non branché ou règle udev absente | `ls -l /dev/u2d2` ; réinstaller la règle (§13.7) |
 | `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK (§13.4) |
 | `Dyna_test` : servos sans réponse (`[TxRxResult] There is no status packet!`) | alimentation des servos, baudrate ou ID | vérifier l'alim 12 V, `BAUDRATE 1000000`, IDs 0 à 17 |
 
@@ -453,6 +453,7 @@ export ROS_LOCALHOST_ONLY=0
 - Dépôt `Hexapode_ECE` cloné dans `~/Hexapode_ECE`, push via Deploy key (§12).
 - DynamixelSDK C++ compilé pour ARM et installé dans `/usr/local` ;
   `Dyna_test` compilé (§13).
+- Règle udev `99-u2d2.rules` : U2D2 toujours en `/dev/u2d2`, latence 1 ms (§13.7).
 
 **Récupération du code Dynamixel**
 - `Dyna_test` retrouvé sur la partition Ubuntu du dual boot du PC
@@ -532,6 +533,7 @@ Test fait le 23/11/2026 : commit `eb328d9` (ajout des dossiers colcon au
 Dyna_test/
 ├── Makefile              compile src/*.cpp → bin/
 ├── .gitignore            ignore bin/ (exécutables)
+├── udev/99-u2d2.rules    nom fixe /dev/u2d2 pour l'U2D2 (§13.7)
 └── src/
     ├── mv_hard_code.cpp  réglage des registres + mouvement prédéfini (18 servos)
     └── my_read_write.cpp test aller-retour sur 2 servos (ID 1 et 2)
@@ -559,8 +561,8 @@ Le `Makefile` choisit la bibliothèque selon la machine :
 Ne compile pas sous Windows tel quel (utilise `termios`/`unistd`).
 
 Avant de lancer :
-- brancher l'adaptateur USB Dynamixel (U2D2…) → doit apparaître en
-  `/dev/ttyUSB0` (`ls /dev/ttyUSB* /dev/ttyACM*`) ;
+- brancher l'U2D2 sur **n'importe quel port USB** → il apparaît toujours en
+  `/dev/u2d2` (vérifier : `ls -l /dev/u2d2`) ;
 - alimenter les servos ;
 - `hexa-pi` est dans le groupe `dialout` → pas besoin de `sudo`.
 
@@ -573,7 +575,7 @@ Avant de lancer :
 | Paramètre | Valeur |
 |---|---|
 | Servos | AX-12A, **protocole 1.0** |
-| Port | `/dev/ttyUSB0` (`DEVICENAME`) |
+| Port | `/dev/u2d2` (`DEVICENAME`), nom fixe donné par la règle udev |
 | Vitesse | `1000000` bauds (`BAUDRATE`) |
 | Nombre de servos | 18 (IDs 0 à 17, `DXL_NUMBER`) |
 | Position | 0–1023 (≈ 0–300°), 512 = milieu |
@@ -600,8 +602,12 @@ Registres utilisés (table de contrôle AX-12A) :
 2. `Set_dyna()` pour chaque servo 0→17 : couple ON, punch 100, marges et
    pentes de compliance. Les pentes CW/CCW sont **inversées** pour les servos
    montés à l'envers.
-3. Boucle infinie : toutes les 0,2 s, envoie l'étape suivante du tableau
-   `dxl_goal_position[11][18]` aux 18 servos via `GroupSyncWrite`.
+3. Boucle infinie : envoie l'étape suivante du tableau
+   `dxl_goal_position[11][18]` aux 18 servos via `GroupSyncWrite`, puis
+   **attend que les 18 servos soient arrivés** (écart < 10) avant de passer à
+   l'étape suivante, avec un délai max de 2 s (`WAIT_TIMEOUT_MS`) ; en cas de
+   dépassement, message `[Etape N] timeout …` et on continue. Pause de 0,2 s
+   entre les étapes.
 
 **Servos montés à l'envers** (`Is_inverted()`) : IDs **0, 1, 2, 12, 13, 14,
 15, 16, 17**. Pour eux la consigne envoyée est `1024 - position`.
@@ -627,13 +633,15 @@ Options de compilation dans le code :
 - `#define DEBUG` : affiche consigne / position de chaque servo (le code
   contient `XXXDEBUG`, donc désactivé).
 
-**Points d'attention relevés dans le code** (non corrigés) :
-- la boucle d'attente `do { … } while(is_all_on_goal_position(...))` tourne
-  *tant que* tous les servos **sont** arrivés : la condition semble inversée
-  (il faudrait `!is_all_on_goal_position`). En pratique le rythme est donné par
-  le `usleep(200000)` ;
-- pour les servos inversés, la comparaison consigne/position se fait avec la
-  consigne non inversée.
+**Corrections apportées le 23/11/2026** (par rapport à la version du dual boot) :
+- la boucle d'attente avait sa condition inversée
+  (`while(is_all_on_goal_position(...))`) et n'attendait donc pas les servos →
+  corrigé en `while(!is_all_on_goal_position(...))`, avec un délai max de 2 s
+  pour ne jamais bloquer si un servo n'atteint pas sa consigne ;
+- pour les servos inversés, la position lue était comparée à la consigne
+  **non inversée** → la consigne réellement envoyée est mémorisée
+  (`sent_goal[]`) et c'est elle qui sert à la comparaison (et à l'affichage `DEBUG`) ;
+- `DEVICENAME` : `/dev/ttyUSB0` → `/dev/u2d2`.
 
 ### 13.5 `my_read_write.cpp`
 
@@ -665,3 +673,32 @@ make && sudo make install          # installe dans /usr/local + ldconfig
 
 Sur un PC Linux x86_64 : même chose avec `c++/build/linux64`
 (→ `libdxl_x64_cpp.so`).
+
+### 13.7 Port fixe `/dev/u2d2` (règle udev)
+
+Sans réglage, l'U2D2 prend le nom `/dev/ttyUSB0`, `/dev/ttyUSB1`… selon
+l'ordre de branchement des adaptateurs USB-série. La règle
+`/etc/udev/rules.d/99-u2d2.rules` (copie dans `Dyna_test/udev/`) :
+- reconnaît l'U2D2 par sa puce FTDI FT232H (`0403:6014`) et crée le lien
+  **`/dev/u2d2`**, quel que soit le port USB ;
+- donne l'accès au groupe `dialout` ;
+- règle la latence USB de l'adaptateur à **1 ms** au lieu de 16 ms
+  (recommandation ROBOTIS, échanges plus rapides).
+
+U2D2 vu sur la Pi : `FTDI USB <-> Serial Converter`, n° de série `FT8ISGAS`.
+
+```bash
+ls -l /dev/u2d2                                  # -> ttyUSB0 (ou autre)
+cat /sys/bus/usb-serial/devices/*/latency_timer  # -> 1
+```
+
+Installer la règle sur une autre machine Linux :
+
+```bash
+sudo cp Dyna_test/udev/99-u2d2.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+> La règle vise tout adaptateur FT232H. Si un jour un autre appareil FT232H
+> est branché en même temps, ajouter `ATTRS{serial}=="FT8ISGAS"` à la règle
+> pour ne viser que cet U2D2.

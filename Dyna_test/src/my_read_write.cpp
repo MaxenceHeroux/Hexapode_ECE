@@ -67,7 +67,7 @@ typedef enum {
 #define LEN_MX_PRESENT_POSITION         2
 
 #define BAUDRATE                        1000000
-#define DEVICENAME                      "/dev/ttyUSB0"      // Check which port is being used on your controller
+#define DEVICENAME                      "/dev/u2d2"         // Nom fixe de l'U2D2 (regle udev /etc/udev/rules.d/99-u2d2.rules)
                                                             // ex) Windows: "COM1"   Linux: "/dev/ttyUSB0"
 #define PUNCH_VALUE                       100                 // Dynamixel will rotate with this value
 

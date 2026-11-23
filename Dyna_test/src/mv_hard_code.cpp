@@ -69,7 +69,7 @@ typedef enum {
 #define LEN_MX_PRESENT_POSITION         2
 
 #define BAUDRATE                        1000000
-#define DEVICENAME                      "/dev/ttyUSB0"      // Check which port is being used on your controller
+#define DEVICENAME                      "/dev/u2d2"         // Nom fixe de l'U2D2 (regle udev /etc/udev/rules.d/99-u2d2.rules)
 #define PUNCH_VALUE                       100                 // Dynamixel will rotate with this value
 
 #define TORQUE_ENABLE                   1                   // Value for enabling the torque
@@ -77,6 +77,7 @@ typedef enum {
 #define DXL_MINIMUM_POSITION_VALUE      400                 // Dynamixel will rotate between this value
 #define DXL_MAXIMUM_POSITION_VALUE      550                // and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
 #define DXL_MOVING_STATUS_THRESHOLD     10                  // Dynamixel moving status threshold
+#define WAIT_TIMEOUT_MS                 2000                // Attente max qu'une etape soit atteinte (ms)
 
 #define ESC_ASCII_VALUE                 0x1b                //ESC
 
@@ -131,6 +132,7 @@ int kbhit(void)
 
 //DYNA function
 #include <iostream>
+#include <chrono>
 #include <string.h>
 
 void check_comm(dynamixel::PacketHandler *packetHandler, int dxl_comm_result, uint8_t dxl_error, std::string str){
@@ -262,6 +264,7 @@ int main()
   uint8_t param_goal_position[2];
 
   uint16_t dxl_present_position[DXL_NUMBER];              // Present position
+  int sent_goal[DXL_NUMBER];                              // Consigne reellement envoyee (apres inversion)
 
   // Open port
   if (portHandler->openPort()){ printf("Succeeded to open the port!\n");
@@ -313,7 +316,8 @@ int main()
         if(Is_inverted(i)){
             goal = 1024-goal;  // inversion de la commande
         }
-    
+        sent_goal[i] = goal;  // memorise la consigne envoyee pour la comparer a la position lue
+
         // Remplit les bytes pour syncWrite
         param_goal_position[0] = DXL_LOBYTE(goal);
         param_goal_position[1] = DXL_HIBYTE(goal);
@@ -328,20 +332,26 @@ int main()
     // Clear syncwrite parameter storage
     groupSyncWrite.clearParam();
 
+    // Attend que tous les servos aient atteint leur consigne (ou WAIT_TIMEOUT_MS)
+    auto start_wait = std::chrono::steady_clock::now();
     do
     {
       // Read present position
-    
+
         for (int i = 0; i < DXL_NUMBER; i++){
             dxl_comm_result = packetHandler->read2ByteTxRx(portHandler, i, ADDR_MX_PRESENT_POSITION, &dxl_present_position[i], &dxl_error);
             check_comm(packetHandler,dxl_comm_result,dxl_error,"");
             #ifdef DEBUG
-            printf("[ID:%03d] GoalPos:%03d  PresPos:%03d\n", i, dxl_goal_position[index][i], dxl_present_position[i]);
+            printf("[ID:%03d] GoalPos:%03d  PresPos:%03d\n", i, sent_goal[i], dxl_present_position[i]);
             #endif
         }
 
+        if (std::chrono::steady_clock::now() - start_wait > std::chrono::milliseconds(WAIT_TIMEOUT_MS)){
+            printf("[Etape %d] timeout : tous les servos n'ont pas atteint leur consigne\n", index);
+            break;
+        }
 
-    }while(is_all_on_goal_position(dxl_goal_position[index], dxl_present_position));
+    }while(!is_all_on_goal_position(sent_goal, dxl_present_position));
 
     // Change goal position
     if (index < sizeof(dxl_goal_position)/sizeof(dxl_goal_position[0]) - 1){ 

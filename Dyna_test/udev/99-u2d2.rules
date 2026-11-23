@@ -1,0 +1,9 @@
+# U2D2 (ROBOTIS) - convertisseur USB/TTL Dynamixel, puce FTDI FT232H (0403:6014)
+# -> nom fixe /dev/u2d2 quel que soit le port USB utilise
+#
+# Installation :
+#   sudo cp 99-u2d2.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6014", SYMLINK+="u2d2", GROUP="dialout", MODE="0660"
+# Latence USB minimale (1 ms au lieu de 16 ms) : echanges Dynamixel plus rapides
+ACTION=="add", SUBSYSTEM=="usb-serial", DRIVER=="ftdi_sio", ATTR{latency_timer}="1"
