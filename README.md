@@ -2,7 +2,8 @@
 
 Ce document décrit tout ce qui a été mis en place le **23/11/2026** entre le PC
 Windows et la Raspberry Pi de l'hexapode : connexion SSH, réseau, partage
-d'internet, VS Code, mises à jour, remise à neuf et sauvegardes.
+d'internet, VS Code, mises à jour, remise à neuf, sauvegardes, synchronisation
+git, et le programme C++ de contrôle des servos Dynamixel (`Dyna_test`, §13).
 
 ---
 
@@ -318,6 +319,7 @@ bloque, `sudo systemctl stop apt-daily.service` l'arrête sans risque.)
 - Outils de dev : `git`, `build-essential` (gcc…), `python3-pip`, `vim`,
   `htop`, `net-tools`
 - VS Code (`code`) + son dépôt
+- DynamixelSDK C++ installé ensuite dans `/usr/local` (voir §13)
 - `.ssh` (clé de connexion), `.bashrc` / `.profile` / `.bash_logout`
   d'origine (`/etc/skel`)
 - Les réglages réseau de la section 4.2 et la clé ROS de la section 6.1
@@ -397,6 +399,9 @@ export ROS_LOCALHOST_ONLY=0
 | `apt` bloqué par un verrou | mises à jour automatiques | §6.2 |
 | Coupures de quelques secondes | lien physique | §4.3 |
 | Heure fausse sur la Pi | pas de RTC + pas d'internet | rétablir internet, `timedatectl` |
+| `Dyna_test` : *Failed to open the port* | adaptateur U2D2 non branché / autre nom de port | `ls /dev/ttyUSB* /dev/ttyACM*`, adapter `DEVICENAME` (§13) |
+| `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK (§13.4) |
+| `Dyna_test` : servos sans réponse (`[TxRxResult] There is no status packet!`) | alimentation des servos, baudrate ou ID | vérifier l'alim 12 V, `BAUDRATE 1000000`, IDs 0 à 17 |
 
 ---
 
@@ -418,6 +423,14 @@ export ROS_LOCALHOST_ONLY=0
   ```
 - Premier commit : le dossier `PCB/` (projet KiCad, Gerbers, fichiers JLCPCB,
   import Altium, `BOM_PCB.xlsx`).
+- Contenu actuel du dépôt :
+  ```
+  Hexapode_ECE/
+  ├── README.md       ← ce document
+  ├── .gitignore
+  ├── PCB/            ← carte d'alimentation / Dynamixel (KiCad)
+  └── Dyna_test/      ← programmes C++ Dynamixel (§13)
+  ```
 
 ---
 
@@ -437,6 +450,15 @@ export ROS_LOCALHOST_ONLY=0
 - Clé du dépôt ROS 2 renouvelée (ancienne gardée en `.gpg.old`).
 - `apt upgrade` (823 paquets) + `apt full-upgrade` (noyau `5.15.0-1113`) + redémarrage.
 - Sauvegarde complète vers le PC, puis remise à neuf (§7).
+- Dépôt `Hexapode_ECE` cloné dans `~/Hexapode_ECE`, push via Deploy key (§12).
+- DynamixelSDK C++ compilé pour ARM et installé dans `/usr/local` ;
+  `Dyna_test` compilé (§13).
+
+**Récupération du code Dynamixel**
+- `Dyna_test` retrouvé sur la partition Ubuntu du dual boot du PC
+  (`/home/maxou/Desktop/HEXAPODE/HEXAPODE/Dyna_test`), lue en lecture seule
+  depuis Windows ; copie dans `Backup\Ubuntu_dualboot\Dyna_test`.
+- Ajouté au dépôt avec un `Makefile` (commit `daf52c3`).
 
 **À faire**
 - [ ] Changer le mot de passe temporaire (`passwd`)
@@ -499,3 +521,147 @@ ssh -T git@github.com
 
 Test fait le 23/11/2026 : commit `eb328d9` (ajout des dossiers colcon au
 `.gitignore`) poussé depuis la Pi puis récupéré sur le PC avec `git pull`.
+
+---
+
+## 13. `Dyna_test` — programmes C++ Dynamixel AX-12A
+
+### 13.1 Contenu
+
+```
+Dyna_test/
+├── Makefile              compile src/*.cpp → bin/
+├── .gitignore            ignore bin/ (exécutables)
+└── src/
+    ├── mv_hard_code.cpp  réglage des registres + mouvement prédéfini (18 servos)
+    └── my_read_write.cpp test aller-retour sur 2 servos (ID 1 et 2)
+```
+
+Origine : récupéré depuis l'Ubuntu du dual boot du PC
+(`/home/maxou/Desktop/HEXAPODE/HEXAPODE/Dyna_test/src`, version du
+02/04/2026). Il n'y avait que les sources : le `Makefile` a été ajouté.
+Copie brute (avec les anciens exécutables x86_64) :
+`Backup\Ubuntu_dualboot\Dyna_test` sur le PC.
+
+### 13.2 Compiler et lancer
+
+```bash
+ssh hexapode
+cd ~/Hexapode_ECE/Dyna_test
+make                     # -> bin/mv_hard_code et bin/my_read_write
+./bin/mv_hard_code       # mouvement prédéfini, en boucle
+./bin/my_read_write      # aller-retour servos 1 et 2 (touche = étape, Échap = quitter)
+make clean               # supprime bin/
+```
+
+Le `Makefile` choisit la bibliothèque selon la machine :
+`-ldxl_sbc_cpp` sur la Pi (ARM), `-ldxl_x64_cpp` sur un PC Linux x86_64.
+Ne compile pas sous Windows tel quel (utilise `termios`/`unistd`).
+
+Avant de lancer :
+- brancher l'adaptateur USB Dynamixel (U2D2…) → doit apparaître en
+  `/dev/ttyUSB0` (`ls /dev/ttyUSB* /dev/ttyACM*`) ;
+- alimenter les servos ;
+- `hexa-pi` est dans le groupe `dialout` → pas besoin de `sudo`.
+
+> ⚠️ `mv_hard_code` (avec `CONTINOUS_MOUVEMENT`) tourne **sans fin**. On
+> l'arrête avec `Ctrl+C`, et dans ce cas le couple des servos **n'est pas
+> coupé** (le code de désactivation après la boucle n'est jamais atteint).
+
+### 13.3 Paramètres communs
+
+| Paramètre | Valeur |
+|---|---|
+| Servos | AX-12A, **protocole 1.0** |
+| Port | `/dev/ttyUSB0` (`DEVICENAME`) |
+| Vitesse | `1000000` bauds (`BAUDRATE`) |
+| Nombre de servos | 18 (IDs 0 à 17, `DXL_NUMBER`) |
+| Position | 0–1023 (≈ 0–300°), 512 = milieu |
+
+Registres utilisés (table de contrôle AX-12A) :
+
+| Registre | Adresse | Usage dans le code |
+|---|---|---|
+| `TORQUE_ENABLE` | 24 | 1 au démarrage, 0 à la fin |
+| `CW_COMPLIANCE_MARGIN` | 26 | `0x01` |
+| `CCW_COMPLIANCE_MARGIN` | 27 | `0x01` |
+| `CW_COMPLIANCE_SLOPE` | 28 | `0x84` ou `0x20` selon le sens de montage |
+| `CCW_COMPLIANCE_SLOPE` | 29 | `0x20` ou `0x84` selon le sens de montage |
+| `GOAL_POSITION` | 30 (2 octets) | consigne, envoyée à tous les servos d'un coup (`GroupSyncWrite`) |
+| `MOVING_SPEED` | 32 (2 octets) | défini, non utilisé |
+| `PRESENT_POSITION` | 36 (2 octets) | relu pour attendre la fin du mouvement |
+| `PRESENT_SPEED` | 38 | défini, non utilisé |
+| `PRESENT_VOLTAGE` | 42 | lu sur le servo 0 et affiché au démarrage |
+| `PUNCH` | 48 (2 octets) | `100` |
+
+### 13.4 `mv_hard_code.cpp` en détail
+
+1. Ouvre le port, règle 1 Mbaud, affiche la tension (servo 0).
+2. `Set_dyna()` pour chaque servo 0→17 : couple ON, punch 100, marges et
+   pentes de compliance. Les pentes CW/CCW sont **inversées** pour les servos
+   montés à l'envers.
+3. Boucle infinie : toutes les 0,2 s, envoie l'étape suivante du tableau
+   `dxl_goal_position[11][18]` aux 18 servos via `GroupSyncWrite`.
+
+**Servos montés à l'envers** (`Is_inverted()`) : IDs **0, 1, 2, 12, 13, 14,
+15, 16, 17**. Pour eux la consigne envoyée est `1024 - position`.
+
+**Mouvement prédéfini** (`dxl_goal_position`, ligne ~246), avec
+`MIN = 400` et `MAX = 550` :
+
+| Étape | Servos 0–2 | Servo 3 | Servo 4 | Servos 5–17 |
+|---|---|---|---|---|
+| 0 | MIN | MIN | MIN | MIN |
+| 1 | MAX | MAX | MAX | MAX |
+| 2 | MAX | MAX | 200 | MAX |
+| 3, 5, 7, 9 | MAX | 700 | 200 | MAX |
+| 4, 6, 8, 10 | MAX | 400 | 200 | MAX |
+
+→ tout le robot se met en position MAX, puis une patte (servos 3 et 4) fait
+des allers-retours. Le programme démarre à l'étape **1** (`index = 1`) et
+reboucle sur l'étape 1 après la 10 : l'étape 0 n'est jamais jouée.
+
+Options de compilation dans le code :
+- `#define CONTINOUS_MOUVEMENT` : enchaînement automatique (sinon une touche
+  par étape, Échap pour quitter) ;
+- `#define DEBUG` : affiche consigne / position de chaque servo (le code
+  contient `XXXDEBUG`, donc désactivé).
+
+**Points d'attention relevés dans le code** (non corrigés) :
+- la boucle d'attente `do { … } while(is_all_on_goal_position(...))` tourne
+  *tant que* tous les servos **sont** arrivés : la condition semble inversée
+  (il faudrait `!is_all_on_goal_position`). En pratique le rythme est donné par
+  le `usleep(200000)` ;
+- pour les servos inversés, la comparaison consigne/position se fait avec la
+  consigne non inversée.
+
+### 13.5 `my_read_write.cpp`
+
+Test simple sur **deux servos (ID 1 et 2)** : à chaque touche, ils vont
+ensemble à `400` puis `600` (alternance), avec affichage de la position
+lue. Même réglage de couple, punch et compliance. Échap pour quitter (le
+couple est alors coupé).
+
+### 13.6 DynamixelSDK sur la Pi
+
+Bibliothèque C++ officielle ROBOTIS, compilée depuis la copie du PC
+(`Backup\CODE_Dyna\DynamixelSDK`, dossier `c++/build/linux_sbc`) et installée :
+
+| Élément | Emplacement |
+|---|---|
+| bibliothèque | `/usr/local/lib/libdxl_sbc_cpp.so` |
+| en-têtes | `/usr/local/include/dynamixel_sdk/` |
+| tables de contrôle | `/usr/local/share/dynamixel_sdk/control_table` |
+
+Réinstaller (depuis le PC, dans `Backup\CODE_Dyna`) :
+
+```bash
+tar czf - --exclude="c++/example" DynamixelSDK/c++ DynamixelSDK/control_table DynamixelSDK/LICENSE \
+  | ssh hexapode 'rm -rf /tmp/DynamixelSDK && tar xzf - -C /tmp'
+ssh hexapode
+cd /tmp/DynamixelSDK/c++/build/linux_sbc
+make && sudo make install          # installe dans /usr/local + ldconfig
+```
+
+Sur un PC Linux x86_64 : même chose avec `c++/build/linux64`
+(→ `libdxl_x64_cpp.so`).
