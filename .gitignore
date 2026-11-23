@@ -1,0 +1,9 @@
+# Sauvegardes (non publiées)
+Backup/
+*-backups/
+
+# Fichiers temporaires / verrous
+~$*
+fp-info-cache
+*.kicad_prl
+*.lck
