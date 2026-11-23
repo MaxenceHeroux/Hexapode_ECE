@@ -7,3 +7,8 @@ Backup/
 fp-info-cache
 *.kicad_prl
 *.lck
+
+# ROS 2 / colcon (dossiers generes par colcon build)
+build/
+install/
+log/
