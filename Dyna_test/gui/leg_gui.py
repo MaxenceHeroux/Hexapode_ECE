@@ -60,9 +60,8 @@ DEFAULT_CONFIG = {
     "port": DEFAULT_PORT,
     "lengths_mm": {"coxa": 50, "femur": 75, "tibia": 125},   # tibia = genou -> bout de patte
     # Courbure du tibia : angle (deg) entre l'axe du servo du genou (direction "droite" du
-    # tibia) et la droite genou -> bout de patte. Cale sur la vraie patte le 25/11/2026 :
-    # femur et tibia alignes -> bout de patte legerement au-dessus du corps (+5 deg).
-    "tibia_bend_deg": 5,
+    # tibia) et la droite genou -> bout de patte. Le tibia du modele est cintre vers le corps.
+    "tibia_bend_deg": -30,
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : decalage du montage = angle de l'articulation quand le servo est a 512.
