@@ -454,6 +454,7 @@ export ROS_LOCALHOST_ONLY=0
 - DynamixelSDK C++ compilé pour ARM et installé dans `/usr/local` ;
   `Dyna_test` compilé (§13).
 - Règle udev `99-u2d2.rules` : U2D2 toujours en `/dev/u2d2`, latence 1 ms (§13.7).
+- `leg_server` + `gui/leg_gui.py` : pilotage d'une patte (IDs 12/13/14) (§14).
 
 **Récupération du code Dynamixel**
 - `Dyna_test` retrouvé sur la partition Ubuntu du dual boot du PC
@@ -534,7 +535,9 @@ Dyna_test/
 ├── Makefile              compile src/*.cpp → bin/
 ├── .gitignore            ignore bin/ (exécutables)
 ├── udev/99-u2d2.rules    nom fixe /dev/u2d2 pour l'U2D2 (§13.7)
+├── gui/leg_gui.py        interface graphique de la patte, sur le PC (§14)
 └── src/
+    ├── leg_server.cpp    pilotage d'une patte (IDs 12/13/14) via TCP (§14)
     ├── mv_hard_code.cpp  réglage des registres + mouvement prédéfini (18 servos)
     └── my_read_write.cpp test aller-retour sur 2 servos (ID 1 et 2)
 ```
@@ -702,3 +705,92 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 > La règle vise tout adaptateur FT232H. Si un jour un autre appareil FT232H
 > est branché en même temps, ajouter `ATTRS{serial}=="FT8ISGAS"` à la règle
 > pour ne viser que cet U2D2.
+
+---
+
+## 14. Pilotage d'une patte : `leg_server` + interface graphique
+
+Une patte = 3 servos : **ID 12 = coxa** (hanche, rotation horizontale),
+**ID 13 = fémur**, **ID 14 = tibia**. Servos détectés : AX-12A (modèle 12).
+
+```
+ PC Windows                                   Raspberry Pi
+ gui/leg_gui.py  ── TCP 5555 (texte) ──►  bin/leg_server ── /dev/u2d2 ──► servos 12/13/14
+ (dessin, curseurs, réglages, pas)        (registres Dynamixel)
+```
+
+### 14.1 Lancer
+
+Sur la Pi (laisser tourner) :
+
+```bash
+ssh -i ~/.ssh/id_ed25519_hexapode hexa-pi@192.168.137.10
+cd ~/Hexapode_ECE/Dyna_test && make && ./bin/leg_server
+#   ./bin/leg_server 12 13 14 5555   (autres IDs / port)
+```
+
+Sur le PC (Python 3, Tkinter inclus, rien à installer) :
+
+```bash
+cd Dyna_test/gui
+python leg_gui.py                 # se connecte à 192.168.137.10:5555
+python leg_gui.py <ip> [port]
+```
+
+`Ctrl+C` sur `leg_server` **coupe le couple** des 3 servos avant de quitter.
+
+### 14.2 L'interface
+
+- **Vue de dessus** (rotation de la coxa) et **vue de côté** (fémur + tibia) :
+  trait plein = position réelle lue sur les servos, pointillés = consigne.
+  Dessin approximatif d'après le modèle SolidWorks *Hexapod Bas1ma Haz1r* :
+  coxa ≈ 50 mm, fémur ≈ 75 mm, tibia ≈ 125 mm (modifiables).
+- **Par servo** : curseur de consigne en degrés, couple ON/OFF, lecture
+  (position, charge %, température, tension, en mouvement), réglages, butées.
+- **ARRÊT COUPLE** (rouge) : couple OFF sur les 3 servos, arrête le pas.
+- **Mouvements** : position neutre (512, avec confirmation), « consigne =
+  position actuelle », et **pas en boucle** (lever → avancer en l'air → poser
+  → pousser au sol) **autour de la pose de départ**, avec amplitude (%) et durée
+  d'étape réglables. À l'arrêt, la patte revient à la pose de départ.
+- À la connexion, les curseurs prennent la position actuelle : **aucune
+  consigne n'est envoyée** tant qu'on ne touche à rien.
+- Réglages d'affichage (longueurs, décalages, servos inversés) et écarts du pas
+  sauvegardés dans `gui/leg_gui_config.json` (non versionné).
+
+> ⚠️ Sur les AX, **écrire une consigne active le couple** automatiquement :
+> bouger un curseur suffit à mettre le servo sous couple.
+
+### 14.3 « PID » sur les AX-12A / AX-18F
+
+Les AX **n'ont pas de PID** (réservé aux séries MX/X). L'équivalent est la
+**compliance** :
+
+| Réglage | Registre | Effet |
+|---|---|---|
+| Marge CW / CCW | 26 / 27 | zone morte autour de la consigne (0–255) ; petite = précis |
+| Pente CW / CCW | 28 / 29 | souplesse : 2, 4, 8, 16, 32, 64, 128 ; **petite = raide**, grande = souple |
+| Punch | 48 | courant minimal appliqué dès qu'il y a un écart (défaut 32) |
+| Limite de couple | 34 | couple max en RAM (0–1023), remis à « couple max » (reg. 14) à l'allumage |
+| Vitesse | 32 | vitesse de déplacement (0 = maximum, 1–1023) |
+| Butées CW / CCW | 6 / 8 | **EEPROM** : le servo refuse d'aller au-delà (conservé hors tension) |
+
+À l'état actuel (lu le 25/11/2026) : marges 1/1, pentes 32/32, punch 32,
+limite de couple 1023, vitesse 0 (max), **butées 0 / 1023 = aucune butée**.
+→ Régler des butées adaptées à la mécanique avant les essais (bouton
+« Appliquer butées (EEPROM) »), et une vitesse modérée (~150–300).
+
+### 14.4 Protocole `leg_server` (TCP, une commande par ligne)
+
+| Commande | Effet |
+|---|---|
+| `PING`, `SCAN` | test ; liste des servos qui répondent (`OK 12:1 13:1 14:1`) |
+| `STATE` | `OK {json}` : position, consigne, vitesse, charge, tension, température, couple et tous les réglages des 3 servos (lecture des adresses 0–49 en un paquet) |
+| `GOAL id pos`, `GOALS p12 p13 p14` | consigne(s) 0–1023 (`GOALS` = SyncWrite) |
+| `TORQUE id 0/1`, `ESTOP` | couple d'un servo / couple OFF partout |
+| `SPEED`, `TLIMIT`, `PUNCH id v` | vitesse, limite de couple, punch |
+| `MARGIN`, `SLOPE id cw ccw` | compliance |
+| `LIMITS id cw ccw` | butées (EEPROM), refuse cw ≥ ccw |
+| `READ id addr len`, `WRITE id addr len val` | accès brut (ID et baudrate protégés) |
+
+Test rapide depuis n'importe quel terminal : `nc 192.168.137.10 5555` puis
+taper `SCAN` ou `STATE`.

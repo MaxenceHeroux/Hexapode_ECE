@@ -1,1 +1,3 @@
 bin/
+gui/leg_gui_config.json
+gui/__pycache__/
