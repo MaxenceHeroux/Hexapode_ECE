@@ -40,9 +40,10 @@ DEFAULT_CONFIG = {
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : angle dessine quand le servo est a 512
+        # 13 et 14 : sens verifie sur la vraie patte le 25/11/2026 (non inverses)
         {"name": "Coxa (hanche)", "id": 12, "inverted": True, "offset_deg": 0},
-        {"name": "Femur",         "id": 13, "inverted": True, "offset_deg": 0},
-        {"name": "Tibia",         "id": 14, "inverted": True, "offset_deg": -90},
+        {"name": "Femur",         "id": 13, "inverted": False, "offset_deg": 0},
+        {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -90},
     ],
     # Mouvement de pas : ECARTS (deg) coxa, femur, tibia ajoutes a la pose de depart
     # (la pose au moment ou on clique "Demarrer le pas")
@@ -204,7 +205,9 @@ class ServoPanel(ttk.LabelFrame):
                         command=app.on_geometry_change).grid(row=1, column=1, columnspan=2, sticky="w")
 
         # --- lecture
-        self.readout = ttk.Label(self, text="-", font=("Consolas", 9), justify="left")
+        # taille fixe (46 car. x 4 lignes) : un texte qui change ne redimensionne pas la fenetre
+        self.readout = tk.Label(self, text="-", font=("Consolas", 9), justify="left", anchor="nw",
+                                width=46, height=4)
         self.readout.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 6))
 
         # --- reglages
@@ -242,7 +245,7 @@ class ServoPanel(ttk.LabelFrame):
         ttk.Separator(self).grid(row=r + 7, column=0, columnspan=4, sticky="we", pady=4)
         entry("Butee CW", "cw_limit", r + 8, 0)
         entry("Butee CCW", "ccw_limit", r + 8, 2)
-        self.limit_lbl = ttk.Label(self, text="", foreground="gray")
+        self.limit_lbl = ttk.Label(self, text="", foreground="gray", width=46)
         self.limit_lbl.grid(row=r + 9, column=0, columnspan=4, sticky="w")
         ttk.Button(self, text="Appliquer butees (EEPROM)", command=self.apply_limits).grid(
             row=r + 10, column=0, columnspan=4, sticky="w")
@@ -324,6 +327,11 @@ class LegApp(tk.Tk):
         self.gait_index = 0
         self.gait_base = [0, 0, 0]
         self._build()
+        # Fige la taille de la fenetre : un changement de texte ne doit jamais la
+        # redimensionner (sinon les curseurs bougent sous la souris).
+        self.update_idletasks()
+        self.geometry(f"{self.winfo_reqwidth()}x{self.winfo_reqheight()}")
+        self.minsize(self.winfo_reqwidth(), self.winfo_reqheight())
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.after(100, self.tick)
 
@@ -337,7 +345,7 @@ class LegApp(tk.Tk):
         self.port = tk.StringVar(value=str(self.cfg["port"]))
         ttk.Entry(top, textvariable=self.port, width=6).pack(side="left", padx=2)
         ttk.Button(top, text="Connecter", command=self.connect).pack(side="left", padx=4)
-        self.conn_lbl = ttk.Label(top, text="deconnecte", foreground="red")
+        self.conn_lbl = ttk.Label(top, text="deconnecte", foreground="red", width=24)
         self.conn_lbl.pack(side="left", padx=6)
         tk.Button(top, text="ARRET COUPLE", bg="#c62828", fg="white", font=("Segoe UI", 10, "bold"),
                   command=self.estop).pack(side="right")
@@ -409,8 +417,9 @@ class LegApp(tk.Tk):
             row=1, column=0, columnspan=7, sticky="w")
 
         self.status_var = tk.StringVar(value="Lancer leg_server sur la Pi, puis Connecter.")
+        # width=1 : la barre d'etat prend la largeur de la fenetre sans jamais l'agrandir
         ttk.Label(self, textvariable=self.status_var, relief="sunken", anchor="w",
-                  padding=3).pack(fill="x", side="bottom")
+                  padding=3, width=1).pack(fill="x", side="bottom")
 
     # ------------------------------------------------------------ helpers
     def status(self, msg):
