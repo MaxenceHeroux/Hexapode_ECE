@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Materiaux et inerties de formes simples -->
+  <material name="noir"><color rgba="0.12 0.12 0.12 1"/></material>
+  <material name="bleu"><color rgba="0.10 0.55 0.85 1"/></material>
+  <material name="servo"><color rgba="0.20 0.20 0.22 1"/></material>
+  <material name="orange"><color rgba="0.95 0.45 0.10 1"/></material>
+
+  <!-- Inertie d'un pave plein de masse m, cote x y z, centre en xyz -->
+  <xacro:macro name="box_inertial" params="m x y z xyz:='0 0 0'">
+    <inertial>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <mass value="${m}"/>
+      <inertia ixx="${m * (y*y + z*z) / 12}" ixy="0" ixz="0"
+               iyy="${m * (x*x + z*z) / 12}" iyz="0"
+               izz="${m * (x*x + y*y) / 12}"/>
+    </inertial>
+  </xacro:macro>
+</robot>

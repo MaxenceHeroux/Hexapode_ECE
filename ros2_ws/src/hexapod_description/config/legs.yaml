@@ -1,0 +1,84 @@
+# Parametres de l'URDF de l'hexapode. GENERE par scripts/gen_legs_yaml.py depuis
+# Dyna_test/gui/leg_gui_config.json (+ butees EEPROM des servos). Ne pas editer a la main.
+# Unites : metres, radians. Angles = convention de hexapod_model.py (0 = servo 512 + offset).
+geometry:
+  coxa: 0.05200       # hanche -> axe du femur
+  femur: 0.06606      # axe du femur -> axe du genou
+  tibia: 0.12284      # genou -> bout de patte (avant decalage)
+  tibia_bend: -0.785398   # -45.0 deg
+  foot_along: 0.0000
+  foot_perp: -0.0200
+  foot_x: 0.086861    # genou -> bout de patte, repere du tibia (calcule)
+  foot_z: -0.106861
+masses:   # ESTIMATIONS (kg) - a remplacer par les pesees
+  body: 0.6
+  coxa: 0.075
+  femur: 0.08
+  tibia: 0.045
+legs:
+  leg_1:
+    name: "Avant gauche"
+    ids: [3, 4, 5]
+    inverted: [False, True, True]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: left   # maillages meshes/leg_<side>_*.stl
+    mount: [0.1219, 0.0609, 0.785398]   # x, y, lacet (45 deg)
+    limits:
+      coxa: [-1.4726, 1.4726]   # raw id 3 : 224..800
+      femur: [-1.7283, 1.7283]   # raw id 4 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 5 : 244..780
+  leg_2:
+    name: "Avant droite"
+    ids: [0, 1, 2]
+    inverted: [False, False, False]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: right   # maillages meshes/leg_<side>_*.stl
+    mount: [0.1219, -0.0609, -0.785398]   # x, y, lacet (-45 deg)
+    limits:
+      coxa: [-1.4726, 1.4726]   # raw id 0 : 224..800
+      femur: [-1.7283, 1.7283]   # raw id 1 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 2 : 244..780
+  leg_3:
+    name: "Milieu droite"
+    ids: [15, 16, 17]
+    inverted: [True, False, False]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: right   # maillages meshes/leg_<side>_*.stl
+    mount: [0.0000, -0.1035, -1.570796]   # x, y, lacet (-90 deg)
+    limits:
+      coxa: [-1.2170, 1.3397]   # raw id 15 : 250..750
+      femur: [-1.7283, 1.7283]   # raw id 16 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 17 : 244..780
+  leg_4:
+    name: "Arriere droite"
+    ids: [12, 13, 14]
+    inverted: [True, False, False]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: right   # maillages meshes/leg_<side>_*.stl
+    mount: [-0.1219, -0.0609, -2.356194]   # x, y, lacet (-135 deg)
+    limits:
+      coxa: [-1.4726, 1.6465]   # raw id 12 : 190..800
+      femur: [-1.7283, 1.7283]   # raw id 13 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 14 : 244..780
+  leg_5:
+    name: "Arriere gauche"
+    ids: [9, 10, 11]
+    inverted: [False, True, True]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: left   # maillages meshes/leg_<side>_*.stl
+    mount: [-0.1219, 0.0609, 2.356194]   # x, y, lacet (135 deg)
+    limits:
+      coxa: [-1.6465, 1.4726]   # raw id 9 : 190..800
+      femur: [-1.7283, 1.7283]   # raw id 10 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 11 : 244..780
+  leg_6:
+    name: "Milieu gauche"
+    ids: [6, 7, 8]
+    inverted: [False, True, True]
+    offset_deg: [0.0, 0.0, 0.0]
+    side: left   # maillages meshes/leg_<side>_*.stl
+    mount: [0.0000, 0.1035, 1.570796]   # x, y, lacet (90 deg)
+    limits:
+      coxa: [-1.3397, 1.2170]   # raw id 6 : 250..750
+      femur: [-1.7283, 1.7283]   # raw id 7 : 174..850
+      tibia: [-1.3704, 1.3704]   # raw id 8 : 244..780

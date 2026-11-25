@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<!--
+  Emplacements des capteurs (tps_archi.md section 7.3), actives par argument :
+    use_imu:=true  use_lidar:=true  use_camera:=true
+  Positions provisoires : a recaler sur le montage reel.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="sensor_frame" params="name xyz rpy:='0 0 0' size">
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+    <link name="${name}_link">
+      <visual>
+        <geometry><box size="${size}"/></geometry>
+        <material name="orange"/>
+      </visual>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="sensors" params="use_imu use_lidar use_camera">
+    <xacro:if value="${use_imu}">
+      <xacro:sensor_frame name="imu" xyz="0 0 0.025" size="0.025 0.020 0.004"/>
+    </xacro:if>
+    <xacro:if value="${use_lidar}">
+      <xacro:sensor_frame name="laser" xyz="0 0 0.060" size="0.040 0.040 0.035"/>
+    </xacro:if>
+    <xacro:if value="${use_camera}">
+      <xacro:sensor_frame name="camera" xyz="0.120 0 0.030" size="0.010 0.025 0.025"/>
+    </xacro:if>
+  </xacro:macro>
+</robot>

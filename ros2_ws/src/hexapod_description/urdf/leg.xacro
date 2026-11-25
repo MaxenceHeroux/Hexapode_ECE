@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+<!--
+  Une patte : coxa (lacet), femur et tibia (tangage), bout de patte.
+  Meme convention que Dyna_test/gui/hexapod_model.py :
+    - repere de la patte : x = vers l'exterieur, z = vers le haut ;
+    - coxa : rotation autour de z ; 0 = dans l'axe du montage ;
+    - femur, tibia : rotation autour de -y (angle > 0 = vers le haut) ;
+    - le tibia est cintre : le bout de patte est a (foot_x, 0, foot_z) dans le repere
+      du genou (tibia_bend + decalage du pied), calcule par gen_legs_yaml.py.
+  Les angles d'articulation sont donc ceux de hexapod_model (radians).
+
+  Maillages (meshes/, mm) : extraits du STEP SolidWorks "Hexapod Bas1ma Haz1r", chacun
+  dans le repere de son segment (voir scripts/README_meshes.md) :
+    hip_servo_<side>   servo de hanche (fixe sur le corps)
+    leg_<side>_coxa    palonnier de hanche + equerres + servo du femur
+    leg_<side>_femur   palonnier du femur + equerres + servo du genou
+    leg_<side>_tibia   palonnier du genou + plaques du tibia + pied
+  side = right (pattes 2, 3, 4) ou left (1, 5, 6, pieces symetriques).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="leg_mesh" params="name">
+    <geometry>
+      <mesh filename="package://hexapod_description/meshes/${name}.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </xacro:macro>
+
+  <xacro:macro name="leg" params="n cfg">
+    <xacro:property name="g" value="${cfg['geometry']}"/>
+    <xacro:property name="ms" value="${cfg['masses']}"/>
+    <xacro:property name="leg" value="${cfg['legs']['leg_' + str(n)]}"/>
+    <xacro:property name="lim" value="${leg['limits']}"/>
+    <xacro:property name="side" value="${leg['side']}"/>
+    <xacro:property name="p" value="leg_${n}"/>
+    <!-- AX-12A : couple max 1.5 N.m, ~59 tr/min a 12 V -->
+    <xacro:property name="effort" value="1.5"/>
+    <xacro:property name="vel" value="6.17"/>
+    <xacro:property name="fx" value="${g['foot_x']}"/>
+    <xacro:property name="fz" value="${g['foot_z']}"/>
+    <xacro:property name="le" value="${sqrt(fx*fx + fz*fz)}"/>
+    <xacro:property name="phi" value="${atan2(fz, fx)}"/>
+
+    <!-- ===== hanche : servo de la coxa, fixe sur le corps ===== -->
+    <joint name="${p}_hip_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${p}_hip_link"/>
+      <origin xyz="${leg['mount'][0]} ${leg['mount'][1]} 0" rpy="0 0 ${leg['mount'][2]}"/>
+    </joint>
+    <link name="${p}_hip_link">
+      <visual>
+        <xacro:leg_mesh name="hip_servo_${side}"/>
+        <material name="servo"/>
+      </visual>
+    </link>
+
+    <!-- ===== coxa ===== -->
+    <joint name="${p}_coxa_joint" type="revolute">
+      <parent link="${p}_hip_link"/>
+      <child link="${p}_coxa_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="${lim['coxa'][0]}" upper="${lim['coxa'][1]}" effort="${effort}" velocity="${vel}"/>
+    </joint>
+    <link name="${p}_coxa_link">
+      <visual>
+        <xacro:leg_mesh name="leg_${side}_coxa"/>
+        <material name="bleu"/>
+      </visual>
+      <collision>
+        <origin xyz="${g['coxa'] / 2} 0 0" rpy="0 0 0"/>
+        <geometry><box size="${g['coxa'] + 0.03} 0.045 0.040"/></geometry>
+      </collision>
+      <xacro:box_inertial m="${ms['coxa']}" x="${g['coxa']}" y="0.04" z="0.04" xyz="${g['coxa'] / 2} 0 0"/>
+    </link>
+
+    <!-- ===== femur ===== -->
+    <joint name="${p}_femur_joint" type="revolute">
+      <parent link="${p}_coxa_link"/>
+      <child link="${p}_femur_link"/>
+      <origin xyz="${g['coxa']} 0 0" rpy="0 0 0"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="${lim['femur'][0]}" upper="${lim['femur'][1]}" effort="${effort}" velocity="${vel}"/>
+    </joint>
+    <link name="${p}_femur_link">
+      <visual>
+        <xacro:leg_mesh name="leg_${side}_femur"/>
+        <material name="bleu"/>
+      </visual>
+      <collision>
+        <origin xyz="${g['femur'] / 2} 0 0" rpy="0 0 0"/>
+        <geometry><box size="${g['femur'] + 0.03} 0.050 0.035"/></geometry>
+      </collision>
+      <xacro:box_inertial m="${ms['femur']}" x="${g['femur']}" y="0.04" z="0.035" xyz="${g['femur'] / 2} 0 0"/>
+    </link>
+
+    <!-- ===== tibia (cintre) ===== -->
+    <joint name="${p}_tibia_joint" type="revolute">
+      <parent link="${p}_femur_link"/>
+      <child link="${p}_tibia_link"/>
+      <origin xyz="${g['femur']} 0 0" rpy="0 0 0"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="${lim['tibia'][0]}" upper="${lim['tibia'][1]}" effort="${effort}" velocity="${vel}"/>
+    </joint>
+    <link name="${p}_tibia_link">
+      <visual>
+        <xacro:leg_mesh name="leg_${side}_tibia"/>
+        <material name="noir"/>
+      </visual>
+      <collision>
+        <origin xyz="${fx / 2} 0 ${fz / 2}" rpy="0 ${pi / 2 - phi} 0"/>
+        <geometry><box size="0.025 0.040 ${le}"/></geometry>
+      </collision>
+      <xacro:box_inertial m="${ms['tibia']}" x="0.025" y="0.04" z="${le}" xyz="${fx / 2} 0 ${fz / 2}"/>
+    </link>
+
+    <!-- ===== bout de patte (dessous du patin caoutchouc) ===== -->
+    <joint name="${p}_foot_joint" type="fixed">
+      <parent link="${p}_tibia_link"/>
+      <child link="${p}_foot_link"/>
+      <origin xyz="${fx} 0 ${fz}" rpy="0 0 0"/>
+    </joint>
+    <link name="${p}_foot_link">
+      <collision>
+        <geometry><sphere radius="0.006"/></geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+</robot>
