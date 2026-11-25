@@ -24,7 +24,11 @@
 //   ESTOP                        couple OFF sur les 3 servos
 //
 // Arret (Ctrl+C, SIGTERM) : le couple des 3 servos est coupe avant de quitter.
+//
+// Reconnexion automatique : si l'U2D2 decroche et revient (parasites quand les servos
+// tirent du courant -> nouveau /dev/ttyUSBx), le port /dev/u2d2 est rouvert tout seul.
 
+#include <climits>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -76,6 +80,40 @@ static dynamixel::PortHandler   *port = nullptr;
 static dynamixel::PacketHandler *pkt  = nullptr;
 static std::vector<int> ids;
 
+// ----------------------------------------------------------------- port / reconnexion
+#define FAIL_STREAK_REOPEN 8          // STATE consecutifs sans aucune reponse -> on rouvre le port
+static std::string g_opened_target;   // ttyUSBx reellement ouvert
+static int g_reconnects = 0;
+static int g_fail_streak = 0;
+
+static std::string current_target() {
+  char buf[PATH_MAX];
+  return realpath(DEVICENAME, buf) ? std::string(buf) : std::string();
+}
+
+static bool open_port() {
+  if (port) { port->closePort(); delete port; port = nullptr; }
+  port = dynamixel::PortHandler::getPortHandler(DEVICENAME);
+  if (!port->openPort()) return false;
+  if (!port->setBaudRate(BAUDRATE)) return false;
+  g_opened_target = current_target();
+  return true;
+}
+
+// Verifie que le port ouvert est toujours le bon ; le rouvre sinon. "" = OK.
+static std::string ensure_port(bool force = false) {
+  std::string t = current_target();
+  if (t.empty()) return "U2D2 absent (/dev/u2d2 introuvable)";
+  if (force || t != g_opened_target) {
+    if (!open_port()) return "reouverture de /dev/u2d2 impossible";
+    g_reconnects++;
+    g_fail_streak = 0;
+    printf("Port rouvert (%s), reconnexion n%d\n", g_opened_target.c_str(), g_reconnects);
+    fflush(stdout);
+  }
+  return "";
+}
+
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 static int word(const uint8_t *t, int a) { return t[a] | (t[a + 1] << 8); }
 // vitesse / charge : bits 0-9 = valeur, bit 10 = sens -> valeur signee
@@ -115,7 +153,15 @@ static void torque_all(int on) {
 // Etat complet des servos en JSON (une ligne)
 static std::string state_json() {
   std::ostringstream o;
-  o << "{\"servos\":[";
+  std::string perr = ensure_port();
+  std::string tgt = g_opened_target.substr(g_opened_target.find_last_of('/') + 1);
+  o << "{\"port\":\"" << tgt << "\",\"reconnects\":" << g_reconnects;
+  if (!perr.empty()) {
+    o << ",\"port_error\":\"" << perr << "\",\"servos\":[]}";
+    return o.str();
+  }
+  o << ",\"servos\":[";
+  int failed = 0;
   for (size_t k = 0; k < ids.size(); k++) {
     int id = ids[k];
     uint8_t t[TABLE_SIZE] = {0};
@@ -123,6 +169,7 @@ static std::string state_json() {
     int res = pkt->readTxRx(port, id, 0, TABLE_SIZE, t, &err);
     if (k) o << ",";
     if (res != COMM_SUCCESS) {
+      failed++;
       o << "{\"id\":" << id << ",\"ok\":false,\"msg\":\"" << pkt->getTxRxResult(res) << "\"}";
       continue;
     }
@@ -150,6 +197,13 @@ static std::string state_json() {
       << "}";
   }
   o << "]}";
+  // Aucun servo ne repond plusieurs fois de suite : on rouvre le port par precaution
+  // (cas d'un U2D2 reconnecte sous le meme nom ttyUSBx).
+  if (failed == (int)ids.size()) {
+    if (++g_fail_streak >= FAIL_STREAK_REOPEN) ensure_port(true);
+  } else {
+    g_fail_streak = 0;
+  }
   return o.str();
 }
 
@@ -175,6 +229,7 @@ static std::string handle(const std::string &line) {
 
   if (cmd == "PING") return "OK pong";
   if (cmd == "STATE") return "OK " + state_json();
+  { std::string e = ensure_port(); if (!e.empty()) return "ERR " + e; }
   if (cmd == "ESTOP") { torque_all(0); return "OK couple coupe"; }
 
   if (cmd == "SCAN") {
@@ -253,11 +308,12 @@ int main(int argc, char **argv) {
   signal(SIGTERM, on_signal);
   signal(SIGPIPE, SIG_IGN);
 
-  port = dynamixel::PortHandler::getPortHandler(DEVICENAME);
   pkt = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
-  if (!port->openPort()) { fprintf(stderr, "Impossible d'ouvrir %s (U2D2 branche ?)\n", DEVICENAME); return 1; }
-  if (!port->setBaudRate(BAUDRATE)) { fprintf(stderr, "Impossible de regler %d bauds\n", BAUDRATE); return 1; }
-  printf("Port %s ouvert a %d bauds. Servos :", DEVICENAME, BAUDRATE);
+  if (!open_port()) {
+    fprintf(stderr, "Impossible d'ouvrir %s a %d bauds (U2D2 branche ?)\n", DEVICENAME, BAUDRATE);
+    return 1;
+  }
+  printf("Port %s (%s) ouvert a %d bauds. Servos :", DEVICENAME, g_opened_target.c_str(), BAUDRATE);
   for (int id : ids) printf(" %d", id);
   printf("\n%s\n", handle("SCAN").c_str());
 

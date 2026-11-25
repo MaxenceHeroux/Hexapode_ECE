@@ -616,6 +616,14 @@ class LegApp(tk.Tk):
             except queue.Empty:
                 break
         st = self.client.state
+        if st:
+            if st.get("port_error"):
+                self.status("U2D2 : " + st["port_error"])
+            rc = st.get("reconnects", 0)
+            if rc != getattr(self, "last_reconnects", rc):
+                self.status(f"U2D2 reconnecte ({st.get('port', '?')}), reconnexion n{rc} : "
+                            "verifier masse / cable USB / alimentation des servos")
+            self.last_reconnects = rc
         if self.client.connected and st and time.time() - self.client.state_time < 1.5:
             self.conn_lbl.config(text="connecte", foreground="green")
             if not self.initialized:
