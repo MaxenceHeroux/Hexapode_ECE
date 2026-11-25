@@ -1,0 +1,12 @@
+# Parametres du pont ROS -> leg_server (hexapod_control/leg_server_bridge).
+# send est fixe par le lancement (robot:=dry -> false, robot:=true -> true).
+leg_server_bridge:
+  ros__parameters:
+    host: "192.168.137.10"   # Pi (leg_server, TCP)
+    port: 5555
+    rate: 25.0               # Hz : GOALSID ; STATE (securite) a rate / 5
+    speed: 100               # vitesse des servos (1..1023), limite les a-coups
+    ramp_time: 8.0           # s : position reelle -> pose de la marche au demarrage
+    max_load: 85.0           # % : au-dela pendant load_time -> gel
+    load_time: 0.6           # s
+    temp_max: 62             # degC -> gel

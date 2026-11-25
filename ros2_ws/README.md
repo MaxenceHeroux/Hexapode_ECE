@@ -35,6 +35,19 @@ python3 src/hexapod_description/scripts/gen_legs_yaml.py --host 192.168.137.10  
 python3 src/hexapod_description/scripts/check_fk.py                               # URDF = hexapod_model ?
 ```
 
+## Lancement complet (recommandé)
+
+```bash
+ros2 launch hexapod_control hexapod.launch.py                          # simulation + Foxglove
+ros2 launch hexapod_control hexapod.launch.py robot:=dry               # + pont vers le robot, sans envoi
+ros2 launch hexapod_control hexapod.launch.py robot:=true teleop:=true # LE ROBOT BOUGE + clavier
+```
+
+Docs détaillées : [`src/hexapod_control/docs/`](src/hexapod_control/docs/)
+([lancement](src/hexapod_control/docs/lancement.md),
+[gait_node](src/hexapod_control/docs/gait_node.md),
+[leg_server_bridge](src/hexapod_control/docs/leg_server_bridge.md)).
+
 ## Marche (simulation, aucun servo ne bouge)
 
 ```bash
