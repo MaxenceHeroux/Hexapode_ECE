@@ -400,7 +400,7 @@ Capteurs prévus :
 | # | Question | Options | Recommandation |
 |---|---|---|---|
 | D1 | **ROS 2 côté PC** | Ubuntu en dual boot / WSL2 / Windows natif | **Ubuntu en dual boot** (22.04 + Humble) : le plus fiable pour ROS, la simulation et le réseau |
-| D2 | **Interface web** | Foxglove / page maison / les deux | **Les deux** : Foxglove tout de suite pour la mise au point, la page maison pour piloter |
+| D2 | **Interface web** | Foxglove / page maison / les deux | **Décidé (25/11/2026) : Foxglove** (`foxglove_bridge` sur la Pi, pilotage par le panneau Teleop sur `/cmd_vel`, voir [ros2_ws/README.md](ros2_ws/README.md)) |
 | D3 | **Simulateur et RL** | Gazebo Fortress / MuJoCo / Isaac Lab | **Dépend de ta carte graphique** : Isaac Lab si carte NVIDIA puissante, sinon **MuJoCo** pour le RL ; Gazebo Fortress pour vérifier l'intégration ROS |
 | D4 | **Modèle 3D** | Export automatique SolidWorks → URDF / xacro écrit à la main | **xacro écrit à la main** (propre, paramétrable) **avec les maillages SolidWorks pour l'affichage**, masses issues de SolidWorks puis recalées par pesée |
 | D5 | **Matériel** | IMU, contacts au pied, AX-18F pour les fémurs | **IMU indispensable** avant le RL ; contacts souhaitables ; AX-18F à envisager selon les essais de marche |

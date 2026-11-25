@@ -17,3 +17,7 @@ log/
 graphify-out/cache/
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+
+# Python
+__pycache__/
+.pytest_cache/

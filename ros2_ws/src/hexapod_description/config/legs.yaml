@@ -21,7 +21,7 @@ legs:
     ids: [3, 4, 5]
     inverted: [False, True, True]
     offset_deg: [0.0, 0.0, 0.0]
-    side: left   # maillages meshes/leg_<side>_*.stl
+    side: left   # maillages meshes/leg_<side>_*.dae
     mount: [0.1219, 0.0609, 0.785398]   # x, y, lacet (45 deg)
     limits:
       coxa: [-1.4726, 1.4726]   # raw id 3 : 224..800
@@ -32,7 +32,7 @@ legs:
     ids: [0, 1, 2]
     inverted: [False, False, False]
     offset_deg: [0.0, 0.0, 0.0]
-    side: right   # maillages meshes/leg_<side>_*.stl
+    side: right   # maillages meshes/leg_<side>_*.dae
     mount: [0.1219, -0.0609, -0.785398]   # x, y, lacet (-45 deg)
     limits:
       coxa: [-1.4726, 1.4726]   # raw id 0 : 224..800
@@ -43,7 +43,7 @@ legs:
     ids: [15, 16, 17]
     inverted: [True, False, False]
     offset_deg: [0.0, 0.0, 0.0]
-    side: right   # maillages meshes/leg_<side>_*.stl
+    side: right   # maillages meshes/leg_<side>_*.dae
     mount: [0.0000, -0.1035, -1.570796]   # x, y, lacet (-90 deg)
     limits:
       coxa: [-1.2170, 1.3397]   # raw id 15 : 250..750
@@ -54,7 +54,7 @@ legs:
     ids: [12, 13, 14]
     inverted: [True, False, False]
     offset_deg: [0.0, 0.0, 0.0]
-    side: right   # maillages meshes/leg_<side>_*.stl
+    side: right   # maillages meshes/leg_<side>_*.dae
     mount: [-0.1219, -0.0609, -2.356194]   # x, y, lacet (-135 deg)
     limits:
       coxa: [-1.4726, 1.6465]   # raw id 12 : 190..800
@@ -65,7 +65,7 @@ legs:
     ids: [9, 10, 11]
     inverted: [False, True, True]
     offset_deg: [0.0, 0.0, 0.0]
-    side: left   # maillages meshes/leg_<side>_*.stl
+    side: left   # maillages meshes/leg_<side>_*.dae
     mount: [-0.1219, 0.0609, 2.356194]   # x, y, lacet (135 deg)
     limits:
       coxa: [-1.6465, 1.4726]   # raw id 9 : 190..800
@@ -76,7 +76,7 @@ legs:
     ids: [6, 7, 8]
     inverted: [False, True, True]
     offset_deg: [0.0, 0.0, 0.0]
-    side: left   # maillages meshes/leg_<side>_*.stl
+    side: left   # maillages meshes/leg_<side>_*.dae
     mount: [0.0000, 0.1035, 1.570796]   # x, y, lacet (90 deg)
     limits:
       coxa: [-1.3397, 1.2170]   # raw id 6 : 250..750

@@ -9,7 +9,7 @@
       du genou (tibia_bend + decalage du pied), calcule par gen_legs_yaml.py.
   Les angles d'articulation sont donc ceux de hexapod_model (radians).
 
-  Maillages (meshes/, mm) : extraits du STEP SolidWorks "Hexapod Bas1ma Haz1r", chacun
+  Maillages (meshes/*.dae, mm, Z vers le haut) : extraits du STEP SolidWorks "Hexapod Bas1ma Haz1r", chacun
   dans le repere de son segment (voir scripts/README_meshes.md) :
     hip_servo_<side>   servo de hanche (fixe sur le corps)
     leg_<side>_coxa    palonnier de hanche + equerres + servo du femur
@@ -21,7 +21,7 @@
 
   <xacro:macro name="leg_mesh" params="name">
     <geometry>
-      <mesh filename="package://hexapod_description/meshes/${name}.stl" scale="0.001 0.001 0.001"/>
+      <mesh filename="package://hexapod_description/meshes/${name}.dae" scale="0.001 0.001 0.001"/>
     </geometry>
   </xacro:macro>
 

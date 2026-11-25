@@ -100,7 +100,7 @@ def main():
         w(f"    ids: {leg['ids']}")
         w(f"    inverted: {[bool(x) for x in leg['inverted']]}")
         w(f"    offset_deg: {[float(x) for x in leg['offset_deg']]}")
-        w(f"    side: {'right' if m['y'] < 0 else 'left'}   # maillages meshes/leg_<side>_*.stl")
+        w(f"    side: {'right' if m['y'] < 0 else 'left'}   # maillages meshes/leg_<side>_*.dae")
         w(f"    mount: [{m['x'] / 1000:.4f}, {m['y'] / 1000:.4f}, {math.radians(m['angle']):.6f}]   # x, y, lacet ({m['angle']} deg)")
         w("    limits:")
         for k, j in enumerate(JOINTS):

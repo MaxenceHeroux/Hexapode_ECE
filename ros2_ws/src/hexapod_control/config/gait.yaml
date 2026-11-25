@@ -1,0 +1,17 @@
+# Parametres de la marche (hexapod_control/gait_node). Modifiables en marche :
+#   ros2 param set /gait_node body_height 0.10     (ou panneau Parameters de Foxglove)
+gait_node:
+  ros__parameters:
+    rate: 50.0            # Hz
+    body_height: 0.12     # m : axes des hanches au-dessus du sol (plaque du bas a -18.5 mm)
+    min_height: 0.05      # attention : sous body_height mini du rayon choisi (voir stance_radius), les pattes sortent des butees
+    max_height: 0.13
+    stance_radius: 0.12   # m : bout de patte <-> axe de hanche, position neutre (pattes serrees :
+                          #     moins de glissement et de couple). Atteignable en marche (butees des
+                          #     tibias) : 120 mm des 120 mm de haut (100 mm a 130 mm), 140 mm des 110 mm, 160 mm des 90 mm,
+                          #     170 mm des 70 mm
+    step_height: 0.03     # m : levee des pattes en vol
+    cycle_time: 1.0       # s : un cycle complet (2 pas de trepied)
+    max_linear: 0.10      # m/s
+    max_angular: 0.6      # rad/s
+    cmd_timeout: 0.5      # s sans /cmd_vel -> arret

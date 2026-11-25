@@ -12,6 +12,7 @@
   <xacro:arg name="use_imu" default="false"/>
   <xacro:arg name="use_lidar" default="false"/>
   <xacro:arg name="use_camera" default="false"/>
+  <xacro:arg name="footprint" default="true"/>
 
   <xacro:include filename="$(find hexapod_description)/urdf/common.xacro"/>
   <xacro:include filename="$(find hexapod_description)/urdf/leg.xacro"/>
@@ -19,21 +20,24 @@
 
   <xacro:property name="cfg" value="${xacro.load_yaml('$(arg legs_yaml)')}"/>
 
-  <!-- Projection au sol du corps (REP-120), utile pour la navigation -->
-  <link name="base_footprint"/>
-  <joint name="base_footprint_joint" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
-    <origin xyz="0 0 0" rpy="0 0 0"/>
-  </joint>
+  <!-- Projection au sol du corps (REP-120). Avec footprint:=false (marche), c'est
+       hexapod_control/gait_node qui publie base_footprint -> base_link (hauteur du corps). -->
+  <xacro:if value="$(arg footprint)">
+    <link name="base_footprint"/>
+    <joint name="base_footprint_joint" type="fixed">
+      <parent link="base_footprint"/>
+      <child link="base_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:if>
 
   <!-- Corps : plaques haute et basse (262 x 202 mm), plaques laterales et entretoises,
-       extraits du STEP SolidWorks "Hexapod Bas1ma Haz1r" (meshes/body.stl, en mm, deja
+       extraits du STEP SolidWorks "Hexapod Bas1ma Haz1r" (meshes/body.dae, en mm, deja
        dans le repere du robot : centre du corps, axes des hanches a z = 0) -->
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><mesh filename="package://hexapod_description/meshes/body.stl" scale="0.001 0.001 0.001"/></geometry>
+      <geometry><mesh filename="package://hexapod_description/meshes/body.dae" scale="0.001 0.001 0.001"/></geometry>
       <material name="noir"/>
     </visual>
     <collision>
