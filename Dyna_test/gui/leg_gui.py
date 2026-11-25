@@ -342,9 +342,11 @@ class ServoPanel(ttk.LabelFrame):
             self.reset_btn.state(["disabled"])
             return
         deg = self.to_deg(s["pos"])
-        load = s["load"] * 100 / 1023
+        # couple OFF : le registre de charge des AX garde une valeur figee -> non affichee
+        load = s["load"] * 100 / 1023 if s["torque"] else 0
+        ltxt = f"charge {load:+5.0f} %" if s["torque"] else "charge  -- (OFF)"
         txt = (f"pos {s['pos']:4d} ({deg:+6.1f} deg)  cible {s['goal']:4d}\n"
-               f"charge {load:+5.0f} %  {s['temp']:2d} degC  {s['volt'] / 10:.1f} V"
+               f"{ltxt}  {s['temp']:2d} degC  {s['volt'] / 10:.1f} V"
                f"{'  en mouvement' if s['moving'] else ''}")
         color = "black"
         if s["temp"] >= 65 or abs(load) > 80:

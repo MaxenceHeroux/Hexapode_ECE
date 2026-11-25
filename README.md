@@ -710,7 +710,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ---
 
-## 14. Pilotage d'une patte : `leg_server` + interface graphique
+## 14. Pilotage d'une patte : `leg_server` + interface graphique (voir aussi §15)
 
 Une patte = 3 servos : **ID 12 = coxa** (hanche, rotation horizontale),
 **ID 13 = fémur**, **ID 14 = tibia**. Servos détectés : AX-12A (modèle 12).
@@ -863,9 +863,12 @@ changer les réglages par défaut.
 
 | Commande | Effet |
 |---|---|
-| `PING`, `SCAN` | test ; liste des servos qui répondent (`OK 12:1 13:1 14:1`) |
-| `STATE` | `OK {json}` : position, consigne, vitesse, charge, tension, température, couple et tous les réglages des 3 servos (lecture des adresses 0–49 en un paquet) |
-| `GOAL id pos`, `GOALS p12 p13 p14` | consigne(s) 0–1023 (`GOALS` = SyncWrite) |
+| `PING`, `SCAN` | test ; liste des servos qui répondent (`OK 0:1 1:1 … 17:1`) |
+| `IDS id id …` | remplace la liste des servos gérés (défaut 0–17), puis SCAN |
+| `STATE` | `OK {json}` : position, consigne, vitesse, charge, tension, température, couple et tous les réglages de chaque servo (adresses 0–49 en un paquet) ; les servos absents ne sont pas relus (un seul re-testé par STATE) |
+| `GOAL id pos` | consigne 0–1023 d'un servo |
+| `GOALS p0 p1 …` | consignes de tous les servos, dans l'ordre de la liste (SyncWrite) |
+| `GOALSID id pos id pos …` | consignes d'un groupe de servos (SyncWrite) |
 | `TORQUE id 0/1`, `ESTOP` | couple d'un servo / couple OFF partout |
 | `RESET [id\|ALL]` | sortie du mode sécurité (consigne = position, limite de couple = couple max, couple ON) |
 | `SPEED`, `TLIMIT`, `PUNCH id v` | vitesse, limite de couple, punch |
@@ -875,3 +878,80 @@ changer les réglages par défaut.
 
 Test rapide depuis n'importe quel terminal : `nc 192.168.137.10 5555` puis
 taper `SCAN` ou `STATE`.
+
+> ⚠️ Sur les AX, quand le couple est **coupé**, le registre de charge (40)
+> garde une valeur figée (souvent ±1023) : l'interface affiche alors
+> « charge -- (OFF) » et `test_torque` l'ignore.
+
+---
+
+## 15. Robot complet : 6 pattes et `test_torque`
+
+Depuis le 25/11/2026, `leg_server` gère **les 18 servos** (IDs 0–17 par
+défaut ; `./bin/leg_server 12 13 14` pour n'en gérer que certains). Les 18
+répondent sur le bus.
+
+### 15.1 Configurer les pattes (interface)
+
+- **Vue « Robot vu de dessus »** : le corps et les 6 pattes en position
+  réelle (gris pointillé = servos absents, rouge = alarme, bleu = patte
+  sélectionnée). **Clic sur une patte** = la sélectionner : ses 3 servos
+  passent dans les panneaux, sans aucun mouvement.
+- **Cadre « Configuration des pattes »** : pour chaque patte, nom, **IDs
+  coxa / fémur / tibia** (modifiables), position du montage sur le corps
+  (x vers l'avant, y vers la gauche, mm) et angle de montage (0 = avant,
+  90 = gauche). Le sens et l'offset de chaque servo se règlent dans les
+  panneaux (case « Monté inversé », ligne Offset) pour la patte sélectionnée.
+- **Cadre « Cinématique »** : position du bout de patte (angle de coxa,
+  portée r, hauteur z) ; avec « Piloter par la position du bout de patte »,
+  les curseurs calculent les angles des 3 servos (cinématique inverse,
+  tibia cintré compris). « Depuis la position actuelle » recale les curseurs
+  sans bouger.
+
+Disposition par défaut (**à vérifier et corriger**) : IDs par triplets en
+tournant autour du corps — 1 avant gauche (0/1/2), 2 avant droite (3/4/5),
+3 milieu droite (6/7/8), 4 arrière droite (9/10/11), 5 arrière gauche
+(12/13/14, déjà calibrée), 6 milieu gauche (15/16/17). Les pattes du côté de
+12/13/14 reprennent son sens, celles d'en face le sens opposé (hypothèse).
+
+Tout est sauvegardé dans `gui/leg_gui_config.json` (format 6 pattes ;
+l'ancienne config une patte est reprise automatiquement). Le code commun
+(config, conversions, cinématique directe / inverse) est dans
+`gui/hexapod_model.py`.
+
+### 15.2 `test_torque.py` : faire bouger tout le robot
+
+```bash
+cd Dyna_test/gui
+python test_torque.py --dry-run        # lit le robot, calcule et verifie tout, ne bouge rien
+python test_torque.py                  # essai reel (confirmation demandee)
+python test_torque.py --lift 20 --skip-move --skip-tripod
+```
+
+Déroulé (à partir de la pose actuelle du robot, posé au sol) :
+
+1. **Vérifications** : 18 servos présents, aucun en alarme, température
+   < 62 °C ; **toutes les poses du plan sont calculées et vérifiées
+   (atteignables, dans les butées) avant le moindre mouvement**.
+2. **Réglages** : fémurs / tibias pente 8, punch 100 (§14.5), vitesse 100 ;
+   consigne = position actuelle puis couple ON (aucun saut).
+3. **Soulever** : tous les bouts de patte descendent par pas de 5 mm jusqu'à
+   `--lift` (30 mm) → le corps monte ; arrêt de la montée si un servo dépasse
+   `--max-load` (85 %) plus de 0,6 s.
+4. **Tenir** `--hold` s (3 s).
+5. **Déplacer le corps** de `--shift` mm (20) avant / arrière / gauche /
+   droite (tous les bouts de patte glissent ensemble).
+6. **Trépieds** : 3 pattes sur 2 (avant droite, arrière droite, milieu
+   gauche, puis les 3 autres) se lèvent de `--tripod` mm (20), les 3 autres
+   portent le robot.
+7. **Reposer** progressivement à la pose de départ.
+
+Sécurité : arrêt immédiat (consignes figées, **couple gardé** pour ne pas
+lâcher le robot) si un servo passe en alarme, dépasse `--temp-max`, si une
+pose est hors d'atteinte / hors butées, ou sur Ctrl+C. Mesures (charge max
+et servo concerné, charge moyenne des fémurs, écart de position,
+température, à chaque pas) enregistrées dans `gui/logs/test_torque_*.json`.
+
+Avant le premier essai réel : configurer les 6 pattes dans l'interface
+(IDs, sens, offsets, montage), régler des butées, et vérifier le plan avec
+`--dry-run`.

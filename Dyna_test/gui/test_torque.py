@@ -142,8 +142,10 @@ class TorqueTest:
                 raise Abort(f"ID {sid} en securite ({', '.join(bits) or 'limite de couple 0'})")
             if s["temp"] >= self.a.temp_max:
                 raise Abort(f"ID {sid} a {s['temp']} degC (max {self.a.temp_max})")
-            load = abs(s["load"]) * 100 / 1023
-            self.peak[sid] = max(self.peak.get(sid, 0), load)
+            # couple OFF : le registre de charge garde une valeur figee (souvent +-1023)
+            if s.get("torque"):
+                load = abs(s["load"]) * 100 / 1023
+                self.peak[sid] = max(self.peak.get(sid, 0), load)
             if s["temp"] >= self.a.temp_max - 5:
                 hot.append(sid)
         return hot
@@ -154,8 +156,8 @@ class TorqueTest:
         for leg in self.legs:
             for k, sid in enumerate(leg["ids"]):
                 s = self.st.get(sid)
-                if not s or not s.get("ok"):
-                    continue
+                if not s or not s.get("ok") or not s.get("torque"):
+                    continue                    # couple OFF : charge figee, sans signification
                 l = abs(s["load"]) * 100 / 1023
                 if l > worst:
                     worst, wid = l, sid
