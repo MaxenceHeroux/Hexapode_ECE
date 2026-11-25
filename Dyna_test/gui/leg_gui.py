@@ -62,6 +62,10 @@ DEFAULT_CONFIG = {
     # Courbure du tibia : angle (deg) entre l'axe du servo du genou (direction "droite" du
     # tibia) et la droite genou -> bout de patte. Le tibia du modele est cintre vers le corps.
     "tibia_bend_deg": -30,
+    # Decalage du bout de patte (mm) dans le repere du tibia, independant de la courbure :
+    # "along" = dans l'axe du genou (+ = plus loin), "perp" = perpendiculaire (+ = vers le
+    # haut quand la patte est horizontale).
+    "foot_offset_mm": {"along": 0, "perp": 0},
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : decalage du montage = angle de l'articulation quand le servo est a 512.
@@ -479,8 +483,15 @@ class LegApp(tk.Tk):
         ttk.Entry(geo, textvariable=self.bend_var, width=5).grid(row=2, column=3, padx=(2, 6), sticky="w")
         ttk.Label(geo, text="axe genou -> bout de patte", foreground="gray").grid(
             row=2, column=4, columnspan=2, sticky="w")
+        fo = self.cfg["foot_offset_mm"]
+        ttk.Label(geo, text="bout de patte (mm) : le long").grid(row=3, column=0, columnspan=3, sticky="e")
+        self.foot_along = tk.StringVar(value=f"{fo['along']:g}")
+        ttk.Entry(geo, textvariable=self.foot_along, width=5).grid(row=3, column=3, padx=(2, 6), sticky="w")
+        ttk.Label(geo, text="travers").grid(row=3, column=4, sticky="e")
+        self.foot_perp = tk.StringVar(value=f"{fo['perp']:g}")
+        ttk.Entry(geo, textvariable=self.foot_perp, width=5).grid(row=3, column=5, padx=(2, 6), sticky="w")
         ttk.Button(geo, text="Appliquer / sauver", command=self.on_geometry_change).grid(
-            row=3, column=0, columnspan=6, sticky="w", pady=(4, 0))
+            row=4, column=0, columnspan=6, sticky="w", pady=(4, 0))
 
         # --- servos
         servos = ttk.Frame(mid)
@@ -625,6 +636,8 @@ class LegApp(tk.Tk):
             for k, v in self.len_vars.items():
                 self.cfg["lengths_mm"][k] = float(v.get())
             self.cfg["tibia_bend_deg"] = float(self.bend_var.get())
+            self.cfg["foot_offset_mm"] = {"along": float(self.foot_along.get()),
+                                          "perp": float(self.foot_perp.get())}
             new_offs = [float(v.get()) for v in self.off_vars]
         except ValueError:
             messagebox.showerror("Geometrie", "Valeur non numerique.")
@@ -742,6 +755,11 @@ class LegApp(tk.Tk):
         chord = axis + math.radians(self.cfg.get("tibia_bend_deg", 0))
         knee = (lc + lf * math.cos(f), lf * math.sin(f))
         foot = (knee[0] + lt * math.cos(chord), knee[1] + lt * math.sin(chord))
+        # decalage du bout de patte dans le repere du tibia (axe du genou / perpendiculaire)
+        fo = self.cfg.get("foot_offset_mm", {})
+        da, dp = float(fo.get("along", 0)), float(fo.get("perp", 0))
+        foot = (foot[0] + da * math.cos(axis) - dp * math.sin(axis),
+                foot[1] + da * math.sin(axis) + dp * math.cos(axis))
         # point de controle : depart de la courbe tangent a l'axe du genou
         ctrl = (knee[0] + 0.55 * lt * math.cos(axis), knee[1] + 0.55 * lt * math.sin(axis))
         return {"knee": knee, "foot": foot, "ctrl": ctrl}

@@ -791,7 +791,11 @@ alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB
 - **Courbure du tibia** : le tibia du modèle est cintré, le bout de patte
   n'est pas dans l'axe du servo du genou. Réglage « courbure tibia (deg) » =
   angle entre l'axe du genou et la droite genou → bout de patte (défaut −30°,
-  à ajuster sur la vraie patte). Le tibia est dessiné courbe et la position du
+  à ajuster sur la vraie patte). **Décalage du bout de patte** (Géométrie,
+  « bout de patte (mm) ») : déplace le bout sans changer la courbure, dans le
+  repère du tibia — « le long » = dans l'axe du genou (+ = plus loin),
+  « travers » = perpendiculaire (+ = vers le haut quand la patte est
+  horizontale). Le tibia est dessiné courbe et la position du
   bout de patte est affichée (distance à l'axe de la coxa, hauteur, en mm).
 - **Mouvements** : position neutre (512, avec confirmation), « consigne =
   position actuelle », et **pas en boucle** (lever → avancer en l'air → poser
