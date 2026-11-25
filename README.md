@@ -908,11 +908,22 @@ répondent sur le bus.
   tibia cintré compris). « Depuis la position actuelle » recale les curseurs
   sans bouger.
 
-Disposition par défaut (**à vérifier et corriger**) : IDs par triplets en
-tournant autour du corps — 1 avant gauche (0/1/2), 2 avant droite (3/4/5),
-3 milieu droite (6/7/8), 4 arrière droite (9/10/11), 5 arrière gauche
-(12/13/14, déjà calibrée), 6 milieu gauche (15/16/17). Les pattes du côté de
-12/13/14 reprennent son sens, celles d'en face le sens opposé (hypothèse).
+Disposition des pattes (IDs donnés le 25/11/2026 : triplets en tournant dans
+le sens trigo à partir de l'avant droite) :
+
+| Patte | Position | IDs coxa / fémur / tibia | Sens (coxa, fémur, tibia) |
+|---|---|---|---|
+| 1 | avant gauche | 3 / 4 / 5 | normal, inversé, inversé |
+| 2 | avant droite | 0 / 1 / 2 | inversé, normal, normal |
+| 3 | milieu droite | 15 / 16 / 17 | inversé, normal, normal |
+| 4 | arrière droite | 12 / 13 / 14 (calibrée) | inversé, normal, normal |
+| 5 | arrière gauche | 9 / 10 / 11 | normal, inversé, inversé |
+| 6 | milieu gauche | 6 / 7 / 8 | normal, inversé, inversé |
+
+Côté droit = 0-2, 12-14, 15-17 (les servos « inversés » de `mv_hard_code`) :
+même sens que la patte 4 calibrée. Côté gauche : sens opposé — **hypothèse à
+vérifier patte par patte** (case « Monté inversé ») ; offsets à 0 sauf
+réglage.
 
 Tout est sauvegardé dans `gui/leg_gui_config.json` (format 6 pattes ;
 l'ancienne config une patte est reprise automatiquement). Le code commun

@@ -24,18 +24,20 @@ DEG_PER_UNIT = 300.0 / 1024.0          # AX : 0..1023 <-> 0..300 deg, 512 = mili
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leg_gui_config.json")
 JOINT_NAMES = ("Coxa (hanche)", "Femur", "Tibia")
 
-# Disposition par defaut : IDs par triplets en tournant autour du corps (a verifier /
-# corriger dans l'interface, cadre "Configuration des pattes"). Les pattes du cote du
-# trio 12/13/14 (deja calibre) reprennent son sens, celles d'en face le sens oppose.
-_SIDE_A = {"inverted": [True, False, False]}          # sens calibre sur la patte 12/13/14
-_SIDE_B = {"inverted": [False, True, True]}           # miroir (a verifier)
+# Disposition des pattes (donnee le 25/11/2026) : patte 2 = 0/1/2, patte 1 = 3/4/5,
+# patte 6 = 6/7/8, puis 5 = 9/10/11, 4 = 12/13/14, 3 = 15/16/17 (IDs par triplets en
+# tournant dans le sens trigo a partir de l'avant droite). Cote droit = 0-2, 12-14, 15-17
+# (les servos "inverses" de mv_hard_code) : sens calibre sur la patte 12/13/14 ; cote
+# gauche = sens oppose (a verifier patte par patte dans l'interface).
+_RIGHT = {"inverted": [True, False, False]}           # sens calibre sur la patte 12/13/14
+_LEFT = {"inverted": [False, True, True]}             # miroir (a verifier)
 DEFAULT_LEGS = [
-    {"name": "Avant gauche",   "ids": [0, 1, 2],    **_SIDE_A, "mount": {"x": 80,  "y": 60,  "angle": 45}},
-    {"name": "Avant droite",   "ids": [3, 4, 5],    **_SIDE_B, "mount": {"x": 80,  "y": -60, "angle": -45}},
-    {"name": "Milieu droite",  "ids": [6, 7, 8],    **_SIDE_B, "mount": {"x": 0,   "y": -80, "angle": -90}},
-    {"name": "Arriere droite", "ids": [9, 10, 11],  **_SIDE_B, "mount": {"x": -80, "y": -60, "angle": -135}},
-    {"name": "Arriere gauche", "ids": [12, 13, 14], **_SIDE_A, "mount": {"x": -80, "y": 60,  "angle": 135}},
-    {"name": "Milieu gauche",  "ids": [15, 16, 17], **_SIDE_A, "mount": {"x": 0,   "y": 80,  "angle": 90}},
+    {"name": "Avant gauche",   "ids": [3, 4, 5],    **_LEFT,  "mount": {"x": 80,  "y": 60,  "angle": 45}},
+    {"name": "Avant droite",   "ids": [0, 1, 2],    **_RIGHT, "mount": {"x": 80,  "y": -60, "angle": -45}},
+    {"name": "Milieu droite",  "ids": [15, 16, 17], **_RIGHT, "mount": {"x": 0,   "y": -80, "angle": -90}},
+    {"name": "Arriere droite", "ids": [12, 13, 14], **_RIGHT, "mount": {"x": -80, "y": -60, "angle": -135}},
+    {"name": "Arriere gauche", "ids": [9, 10, 11],  **_LEFT,  "mount": {"x": -80, "y": 60,  "angle": 135}},
+    {"name": "Milieu gauche",  "ids": [6, 7, 8],    **_LEFT,  "mount": {"x": 0,   "y": 80,  "angle": 90}},
 ]
 for _leg in DEFAULT_LEGS:
     _leg["offset_deg"] = [0.0, 0.0, 0.0]
@@ -52,7 +54,7 @@ DEFAULT_CONFIG = {
     "foot_offset_mm": {"along": 0, "perp": 0},
     "show_limits": True,      # lignes rouges des butees CW / CCW sur le dessin
     "legs": DEFAULT_LEGS,
-    "selected_leg": 4,        # patte affichee dans les panneaux (12/13/14)
+    "selected_leg": 3,        # patte affichee dans les panneaux (patte 4 = 12/13/14)
     # Mouvement de pas de l'interface : ECARTS (deg) coxa, femur, tibia autour de la pose
     # de depart.
     "gait": [[-15, 25, 20], [15, 25, 20], [15, 0, 0], [-15, 0, 0]],
