@@ -778,12 +778,15 @@ alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB
   couple = couple max (reg. 14), couple ON. La cause est affichée en clair
   (`SECURITE : surcharge -> Reset`). Testé le 25/11/2026 sur le servo 14 en
   surcharge (erreur `0x20`, limite de couple 0) : remis en service sans mouvement.
-- **Décalage du montage** (« dec. » dans Géométrie) = angle de l'articulation
-  quand le servo est à 512. Il s'applique partout : curseur, lecture, butées
-  et dessin affichent l'angle de l'**articulation**, pas celui du servo.
-  Servo 14 monté à ~90° : décalage **−91°** (−82° pour l'alignement mesuré
-  à 793, puis +9° moteur calé en mettant les 3 articulations à 0).
-  Changer un décalage ne fait pas bouger le servo (la consigne est
+- **Offset (décalage du montage)** = angle de l'articulation quand le servo
+  est à 512. Il s'applique partout : curseur, lecture, butées et dessin
+  affichent l'angle de l'**articulation**, pas celui du servo. Réglable dans
+  chaque panneau de servo (ligne **Offset** : saisie + Entrée, boutons
+  −90 / −1 / +1 / +90, **Zéro ici** = la position actuelle devient 0°) ou
+  dans « dec. » du cadre Géométrie ; sauvegardé automatiquement.
+  Servo 14 : offset **−181°** au 25/11/2026 (−82° alignement mesuré à 793,
+  +9° moteur, −90° car il affichait 90° de trop).
+  Changer un offset ne fait pas bouger le servo (la consigne est
   ré-exprimée avec le nouveau décalage).
 - **Courbure du tibia** : le tibia du modèle est cintré, le bout de patte
   n'est pas dans l'axe du servo du genou. Réglage « courbure tibia (deg) » =

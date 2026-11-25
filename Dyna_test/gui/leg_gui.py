@@ -70,9 +70,9 @@ DEFAULT_CONFIG = {
         # 13 et 14 : sens verifie sur la vraie patte le 25/11/2026 (non inverses)
         {"name": "Coxa (hanche)", "id": 12, "inverted": True, "offset_deg": 0},
         {"name": "Femur",         "id": 13, "inverted": False, "offset_deg": 0},
-        # 14 : monte a ~90 deg ; decalage -82 puis +9 deg moteur (cale le 25/11/2026 en
-        #      mettant les 3 articulations a 0) -> -91
-        {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -91},
+        # 14 : monte a ~90 deg ; -82 (alignement), +9 deg moteur, puis -90 (affichait 90 deg
+        #      de trop) -> -181. Reglable dans l'interface (ligne "Offset" du servo).
+        {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -181},
     ],
     # Mouvement de pas : ECARTS (deg) coxa, femur, tibia ajoutes a la pose de depart
     # (la pose au moment ou on clique "Demarrer le pas")
@@ -235,14 +235,27 @@ class ServoPanel(ttk.LabelFrame):
                         command=app.on_geometry_change).grid(row=1, column=1, columnspan=2, sticky="w")
         self.set_range()   # course du curseur selon inversion + decalage
 
+        # --- offset (zero de l'articulation) : ne fait jamais bouger le servo
+        of = ttk.Frame(self)
+        of.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        ttk.Label(of, text="Offset (deg)").pack(side="left")
+        self.off_var = tk.StringVar(value=f"{self.off():g}")
+        oe = ttk.Entry(of, textvariable=self.off_var, width=6)
+        oe.pack(side="left", padx=(2, 4))
+        oe.bind("<Return>", lambda _e: self.apply_offset())
+        for txt, delta in (("-90", -90), ("-1", -1), ("+1", 1), ("+90", 90)):
+            ttk.Button(of, text=txt, width=3,
+                       command=lambda d=delta: self.shift_offset(d)).pack(side="left")
+        ttk.Button(of, text="Zero ici", command=self.zero_here).pack(side="left", padx=(4, 0))
+
         # --- lecture
         # taille fixe (46 car. x 4 lignes) : un texte qui change ne redimensionne pas la fenetre
         self.readout = tk.Label(self, text="-", font=("Consolas", 9), justify="left", anchor="nw",
                                 width=46, height=4)
-        self.readout.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 6))
+        self.readout.grid(row=3, column=0, columnspan=4, sticky="w", pady=(2, 6))
 
         # --- reglages
-        r = 3
+        r = 4
         self.vars = {}
 
         def entry(label, key, row, col, width=6, tip=None):
@@ -330,6 +343,24 @@ class ServoPanel(ttk.LabelFrame):
     def to_raw(self, deg):
         """Angle de l'articulation (deg) -> position brute du servo."""
         return deg_to_raw(deg - self.off(), self.inv.get())
+
+    # ----- offset
+    def apply_offset(self):
+        try:
+            self.app.set_offset(self.i, float(self.off_var.get()))
+        except ValueError:
+            messagebox.showerror("Offset", "Valeur non numerique.")
+
+    def shift_offset(self, delta):
+        self.app.set_offset(self.i, self.off() + delta)
+
+    def zero_here(self):
+        """Offset tel que la position ACTUELLE du servo s'affiche 0 deg."""
+        s = self.app.servo_state(self.i)
+        if not s or not s.get("ok"):
+            messagebox.showerror("Zero ici", "Position du servo inconnue (non connecte ?).")
+            return
+        self.app.set_offset(self.i, round(-raw_to_deg(s["pos"], self.inv.get()), 1))
 
     def set_range(self):
         """Course du curseur = course du servo (0..1023) exprimee en angle d'articulation."""
@@ -574,6 +605,21 @@ class LegApp(tk.Tk):
             if s and s.get("ok"):
                 p.target.set(round(p.to_deg(s["pos"])))
 
+    def set_offset(self, i, off, save=True):
+        """Change l'offset (zero) de l'articulation i sans bouger le servo : la consigne
+        garde la meme position servo et est re-exprimee avec le nouvel offset."""
+        j, p = self.cfg["joints"][i], self.panels[i]
+        raw = deg_to_raw(p.target.get() - float(j["offset_deg"]), bool(j["inverted"]))
+        j["offset_deg"] = off
+        j["inverted"] = bool(p.inv.get())
+        p.set_range()
+        p.target.set(round(p.to_deg(raw)))
+        p.off_var.set(f"{off:g}")
+        self.off_vars[i].set(f"{off:g}")
+        if save:
+            save_config(self.cfg)
+            self.status(f"ID {j['id']} : offset {off:g} deg (sauvegarde)")
+
     def on_geometry_change(self):
         try:
             for k, v in self.len_vars.items():
@@ -583,14 +629,8 @@ class LegApp(tk.Tk):
         except ValueError:
             messagebox.showerror("Geometrie", "Valeur non numerique.")
             return
-        for j, off, p in zip(self.cfg["joints"], new_offs, self.panels):
-            # la consigne garde la meme position servo : on la re-exprime avec le nouveau decalage
-            raw = deg_to_raw(p.target.get() - float(j["offset_deg"]), bool(j["inverted"]))
-            j["offset_deg"] = off
-            j["inverted"] = bool(p.inv.get())
-            p.set_range()
-            p.target.set(round(p.to_deg(raw)))
-            p.loaded = False
+        for i, (off, p) in enumerate(zip(new_offs, self.panels)):
+            self.set_offset(i, off, save=False)
         save_config(self.cfg)
         self.status("Geometrie sauvegardee dans leg_gui_config.json")
 
