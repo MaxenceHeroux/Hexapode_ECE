@@ -741,6 +741,26 @@ python leg_gui.py <ip> [port]
 
 `Ctrl+C` sur `leg_server` **coupe le couple** des 3 servos avant de quitter.
 
+**Reconnexion automatique de l'U2D2.** Quand les servos bougent, l'U2D2 peut
+décrocher de l'USB et revenir 0,3 s plus tard sous un autre nom
+(`ttyUSB0` → `ttyUSB1`), constaté le 25/11/2026 :
+
+```
+ftdi_sio ttyUSB0: usb_serial_generic_write_bulk_callback - nonzero urb status: -71
+usb 1-1.4: USB disconnect ... FT232H ... now attached to ttyUSB1
+```
+
+`leg_server` rouvre alors `/dev/u2d2` tout seul (si sa cible change, ou après
+~1 s sans aucune réponse des servos) ; l'interface l'affiche dans sa barre
+d'état. Testé en débranchant/rebranchant l'U2D2 logiciellement : servos
+retrouvés sans intervention. Voir les déconnexions :
+`journalctl -k | grep -E "ftdi|USB disconnect"`.
+
+Cause probable : parasites quand les servos tirent du courant (masse / câble
+USB). Pistes : câble USB court et de bonne qualité, U2D2 branché directement
+sur la Pi (pas de hub), alimentation des servos via un U2D2 Power Hub ou une
+alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB.
+
 ### 14.2 L'interface
 
 - **Vue de dessus** (rotation de la coxa) et **vue de côté** (fémur + tibia) :
