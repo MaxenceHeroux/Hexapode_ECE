@@ -28,6 +28,9 @@
 //
 // Arret (Ctrl+C, SIGTERM) : le couple des 3 servos est coupe avant de quitter.
 //
+// Reglages au demarrage : les commandes du fichier Dyna_test/leg_settings.txt (a cote du
+// dossier bin/) sont executees au lancement (registres RAM des AX, perdus hors tension).
+//
 // Reconnexion automatique : si l'U2D2 decroche et revient (parasites quand les servos
 // tirent du courant -> nouveau /dev/ttyUSBx), le port /dev/u2d2 est rouvert tout seul.
 
@@ -341,6 +344,31 @@ static std::string handle(const std::string &line) {
   return "ERR commande inconnue : " + cmd;
 }
 
+// Execute les commandes de leg_settings.txt (dossier parent de bin/), lignes # ignorees.
+static void apply_settings_file() {
+  char exe[PATH_MAX];
+  ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+  if (n <= 0) return;
+  exe[n] = 0;
+  std::string dir(exe);
+  dir = dir.substr(0, dir.find_last_of('/'));            // .../Dyna_test/bin
+  dir = dir.substr(0, dir.find_last_of('/'));            // .../Dyna_test
+  std::string path = dir + "/leg_settings.txt";
+  FILE *fp = fopen(path.c_str(), "r");
+  if (!fp) { printf("Pas de %s (reglages par defaut des servos)\n", path.c_str()); return; }
+  printf("Reglages de %s :\n", path.c_str());
+  char line[256];
+  while (fgets(line, sizeof(line), fp)) {
+    std::string l(line);
+    while (!l.empty() && (l.back() == '\n' || l.back() == '\r' || l.back() == ' ')) l.pop_back();
+    size_t p = l.find_first_not_of(" \t");
+    if (p == std::string::npos || l[p] == '#') continue;
+    printf("  %-24s -> %s\n", l.c_str() + p, handle(l.substr(p)).c_str());
+  }
+  fclose(fp);
+  fflush(stdout);
+}
+
 int main(int argc, char **argv) {
   int tcp_port = DEFAULT_PORT;
   if (argc >= 4) {
@@ -362,6 +390,7 @@ int main(int argc, char **argv) {
   printf("Port %s (%s) ouvert a %d bauds. Servos :", DEVICENAME, g_opened_target.c_str(), BAUDRATE);
   for (int id : ids) printf(" %d", id);
   printf("\n%s\n", handle("SCAN").c_str());
+  apply_settings_file();
 
   int srv = socket(AF_INET, SOCK_STREAM, 0);
   int one = 1;

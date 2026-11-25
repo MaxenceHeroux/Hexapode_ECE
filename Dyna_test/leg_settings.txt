@@ -1,0 +1,23 @@
+# Reglages appliques par leg_server a chaque demarrage (une commande par ligne,
+# meme syntaxe que le protocole TCP). Ces registres des AX sont en RAM : ils sont
+# perdus a chaque coupure d'alimentation, d'ou ce fichier.
+#
+# Femur (13) et tibia (14) : meilleurs reglages pour soulever le robot avec une patte,
+# trouves le 25/11/2026 (femur abaisse de 50 unites sous charge, 6 combinaisons testees) :
+#   pente 32 / punch 32 (usine) : consigne non atteinte, ecart 7,9 unites
+#   pente  8 / punch 100        : atteinte en 0,20 s, ecart 1 unite, aucune oscillation,
+#                                 charge de maintien 22 %  -> retenu
+#   (pente 4 / punch 64 : ecart equivalent mais oscillation et 31 % de charge)
+# Detail dans le README, section 14.5.
+
+SPEED 13 150
+TLIMIT 13 1023
+MARGIN 13 1 1
+SLOPE 13 8 8
+PUNCH 13 100
+
+SPEED 14 150
+TLIMIT 14 1023
+MARGIN 14 1 1
+SLOPE 14 8 8
+PUNCH 14 100

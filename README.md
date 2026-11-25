@@ -833,7 +833,33 @@ limite de couple 1023, vitesse 0 (max), **butées 0 / 1023 = aucune butée**.
 → Régler des butées adaptées à la mécanique avant les essais (bouton
 « Appliquer butées (EEPROM) »), et une vitesse modérée (~150–300).
 
-### 14.4 Protocole `leg_server` (TCP, une commande par ligne)
+### 14.5 Réglages pour soulever le robot (fémur 13 / tibia 14)
+
+Essais du 25/11/2026 : robot posé, bout de la patte 12/13/14 au sol ; pour
+chaque combinaison (appliquée à 13 et 14 : vitesse 150, limite de couple
+1023, marge 1), fémur abaissé de 50 unités (≈ 15°, 512 → 462) pour soulever
+le corps, mesures pendant 2,5 s, retour à la pose de départ.
+
+| Pente | Punch | Atteint | Écart 13 / 14 (unités) | Oscillation | Maintien 13 |
+|---|---|---|---|---|---|
+| 32 (usine) | 32 | **non** | +7,9 / +4,1 | 0,3 | 24 % |
+| 16 | 32 | 0,26 s | +3,0 / +4,0 | 0,4 | 16 % |
+| 16 | 64 | 0,26 s | +3,0 / +3,4 | 0,5 | 19 % |
+| 8 | 64 | 0,20 s | +2,6 / +1,0 | 0,8 | 30 % |
+| **8** | **100** | **0,20 s** | **+1,0 / +1,0** | **0,0** | **22 %** |
+| 4 | 64 | 0,19 s | +1,0 / +0,7 | 0,5 | 31 % |
+
+Aucune alarme, température 47–50 °C. **Retenu : pente 8 / punch 100** (même
+précision que pente 4 mais sans oscillation et moins de charge, donc moins
+de chauffe). Avec le réglage d'usine le poids fait plier la patte de ~2,3°.
+
+Ces registres sont en **RAM** sur les AX (perdus hors tension) :
+`leg_server` les réapplique à chaque démarrage depuis
+**`Dyna_test/leg_settings.txt`** (une commande du protocole par ligne,
+`#` = commentaire). Modifier ce fichier puis relancer `leg_server` pour
+changer les réglages par défaut.
+
+### 14.6 Protocole `leg_server` (TCP, une commande par ligne)
 
 | Commande | Effet |
 |---|---|
