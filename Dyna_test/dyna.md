@@ -17,6 +17,7 @@ Dyna_test/
 ├── dyna.md               ce document
 ├── Torque_calcul.md      calculs de couple, essais et résultats (avec graphiques)
 ├── graphs/               graphiques des essais (générés par gui/plot_torque.py)
+├── img/                  captures d'écran (interface)
 ├── leg_settings.txt      réglages des servos appliqués au démarrage de leg_server (§2.4)
 ├── udev/99-u2d2.rules    nom fixe /dev/u2d2 pour l'U2D2 (§1.7)
 ├── src/
@@ -253,6 +254,18 @@ sur la Pi (pas de hub), alimentation des servos via un U2D2 Power Hub ou une
 alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB.
 
 ### 2.2 L'interface
+
+![Interface leg_gui : patte 2 (avant droite) sélectionnée](img/interface_leg_gui.png)
+
+*L'interface connectée au robot, patte 2 (avant droite, IDs 0 / 1 / 2)
+sélectionnée. À gauche : le robot vu de dessus avec ses 6 pattes (la patte
+sélectionnée en bleu, butées de sa coxa en rouge), puis la vue de côté de la
+patte (tibia cintré, butées CW / CCW du fémur et du tibia), et la géométrie
+commune. Au centre et à droite : un panneau par servo (consigne, couple,
+sens, offset, lecture, réglages de compliance, butées). En bas : les
+mouvements, la configuration des pattes (IDs, montage) et la cinématique
+inverse du bout de patte. Barre d'état : réponse du serveur au scan des 18
+servos.*
 
 - **Vue de dessus** (rotation de la coxa) et **vue de côté** (fémur + tibia) :
   trait plein = position réelle lue sur les servos, pointillés = consigne.
