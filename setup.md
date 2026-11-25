@@ -5,7 +5,7 @@ Windows et la Raspberry Pi de l'hexapode : connexion SSH, réseau, partage
 d'internet, VS Code, mises à jour, remise à neuf, sauvegardes, synchronisation
 git.
 
-Les servos Dynamixel (serveur, interface, essais) sont décrits dans [dyna.md](dyna.md) ; l'index du projet est le [README.md](README.md).
+Les servos Dynamixel (serveur, interface, essais) sont décrits dans [dyna.md](Dyna_test/dyna.md) ; l'index du projet est le [README.md](README.md).
 
 ---
 
@@ -323,7 +323,7 @@ bloque, `sudo systemctl stop apt-daily.service` l'arrête sans risque.)
 - Outils de dev : `git`, `build-essential` (gcc…), `python3-pip`, `vim`,
   `htop`, `net-tools`
 - VS Code (`code`) + son dépôt
-- DynamixelSDK C++ installé ensuite dans `/usr/local` (voir [dyna.md §1](dyna.md))
+- DynamixelSDK C++ installé ensuite dans `/usr/local` (voir [dyna.md §1](Dyna_test/dyna.md))
 - `.ssh` (clé de connexion), `.bashrc` / `.profile` / `.bash_logout`
   d'origine (`/etc/skel`)
 - Les réglages réseau de la section 4.2 et la clé ROS de la section 6.1
@@ -403,8 +403,8 @@ export ROS_LOCALHOST_ONLY=0
 | `apt` bloqué par un verrou | mises à jour automatiques | §6.2 |
 | Coupures de quelques secondes | lien physique | §4.3 |
 | Heure fausse sur la Pi | pas de RTC + pas d'internet | rétablir internet, `timedatectl` |
-| `Dyna_test` : *Failed to open the port* | U2D2 non branché ou règle udev absente | `ls -l /dev/u2d2` ; réinstaller la règle ([dyna.md §1.7](dyna.md)) |
-| `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK ([dyna.md §1.6](dyna.md)) |
+| `Dyna_test` : *Failed to open the port* | U2D2 non branché ou règle udev absente | `ls -l /dev/u2d2` ; réinstaller la règle ([dyna.md §1.7](Dyna_test/dyna.md)) |
+| `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK ([dyna.md §1.6](Dyna_test/dyna.md)) |
 | `Dyna_test` : servos sans réponse (`[TxRxResult] There is no status packet!`) | alimentation des servos, baudrate ou ID | vérifier l'alim 12 V, `BAUDRATE 1000000`, IDs 0 à 17 |
 
 ---
@@ -432,11 +432,9 @@ export ROS_LOCALHOST_ONLY=0
   Hexapode_ECE/
   ├── README.md       ← index du projet
   ├── setup.md        ← ce document (Pi, réseau, SSH, git)
-  ├── dyna.md         ← servos Dynamixel : serveur, interface, essais
-  ├── Torque_calcul.md ← calculs de couple et résultats des essais
   ├── .gitignore
   ├── PCB/            ← carte d'alimentation / Dynamixel (KiCad)
-  └── Dyna_test/      ← code Dynamixel ([dyna.md §1](dyna.md))
+  └── Dyna_test/      ← code Dynamixel + dyna.md, Torque_calcul.md, graphs/ ([dyna.md §1](Dyna_test/dyna.md))
   ```
 
 ---
@@ -459,9 +457,9 @@ export ROS_LOCALHOST_ONLY=0
 - Sauvegarde complète vers le PC, puis remise à neuf (§7).
 - Dépôt `Hexapode_ECE` cloné dans `~/Hexapode_ECE`, push via Deploy key (§12).
 - DynamixelSDK C++ compilé pour ARM et installé dans `/usr/local` ;
-  `Dyna_test` compilé ([dyna.md §1](dyna.md)).
-- Règle udev `99-u2d2.rules` : U2D2 toujours en `/dev/u2d2`, latence 1 ms ([dyna.md §1.7](dyna.md)).
-- `leg_server` + `gui/leg_gui.py` : pilotage d'une patte (IDs 12/13/14) ([dyna.md §2](dyna.md)).
+  `Dyna_test` compilé ([dyna.md §1](Dyna_test/dyna.md)).
+- Règle udev `99-u2d2.rules` : U2D2 toujours en `/dev/u2d2`, latence 1 ms ([dyna.md §1.7](Dyna_test/dyna.md)).
+- `leg_server` + `gui/leg_gui.py` : pilotage d'une patte (IDs 12/13/14) ([dyna.md §2](Dyna_test/dyna.md)).
 
 **Récupération du code Dynamixel**
 - `Dyna_test` retrouvé sur la partition Ubuntu du dual boot du PC

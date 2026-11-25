@@ -4,8 +4,10 @@ Ce document rassemble le calcul du couple demandé aux servos Dynamixel pour
 porter et lever l'hexapode, les essais faits le **25/11/2026** et leurs
 résultats, et la façon de refaire les essais et les graphiques.
 
-Programme d'essai : `Dyna_test/gui/test_torque.py` ([dyna.md §3](dyna.md)).
-Mesures brutes : `Dyna_test/gui/logs/` (versionnées, voir §5).
+Programme d'essai : [`gui/test_torque.py`](gui/test_torque.py) ([dyna.md §3](dyna.md)).
+Mesures brutes : [`gui/logs/`](gui/logs) (versionnées, voir §5).
+Graphiques : [`graphs/`](graphs), générés à partir des mesures par
+[`gui/plot_torque.py`](gui/plot_torque.py) (voir §5).
 
 ---
 
@@ -78,6 +80,14 @@ voir §4.3), soit 19,6 N :
 
 Pour une masse de 1,5 kg, ces valeurs sont à multiplier par 0,75.
 
+![Couple demandé au fémur selon le bras de levier et le nombre de pattes au sol](graphs/couple_theorique.png)
+
+*Couple demandé au fémur en fonction du bras de levier, pour 6, 3 et 1
+patte(s) au sol (m = 2,0 kg), comparé au couple disponible. L'étoile est la
+mesure faite debout pendant l'essai 3 (§3.3). Elle est sous la droite à 6
+pattes, ce qui confirme que la charge lue sous-estime le couple ou que le robot
+est plus léger que 2 kg (§3.5).*
+
 **À retenir :**
 - **Une seule patte ne peut pas lever le robot**, quel que soit le réglage.
   C'est ce qu'ont montré les essais du §3.2.
@@ -107,6 +117,13 @@ punch, vitesse 150 ([dyna.md §2.4](dyna.md)) :
 
 → **Retenu : pente 8, punch 100** pour les fémurs et les tibias
 (`Dyna_test/leg_settings.txt`, réglages réappliqués par `test_torque`).
+
+![Essai 1 : écart de position et charge de maintien selon la pente et le punch](graphs/reglages_compliance.png)
+
+*Barres : écart entre la position atteinte et la consigne, en unités servo
+(1 unité = 0,29°). Courbe : charge de maintien du fémur 13. Le réglage d'usine
+(pente 32 / punch 32) n'atteint pas la consigne ; pente 8 / punch 100 donne le
+plus petit écart sans oscillation.*
 
 ### 3.2 Essai 2 : une patte seule tient le robot levé → échec
 
@@ -139,14 +156,27 @@ départ et le robot était retombé.
 - aucune alarme, température **37–38 °C** ;
 - le robot a tenu 5 s debout, puis est redescendu ; 237 lectures en 27,5 s.
 
-**Contact avec le sol :** la charge moyenne des fémurs est au plus bas
-(6–8 %) vers z = −33 à −37 mm, puis remonte régulièrement. Les bouts de patte
-touchent donc le sol vers **z ≈ −38 mm** et **le corps s'est levé d'environ
-52 mm** (les bouts de patte, eux, ont parcouru 80 mm).
+**Contact avec le sol :** la charge des fémurs est au plus bas (pattes en
+l'air) entre z = −29 et −37 mm, puis remonte régulièrement. Les bouts de patte
+touchent donc le sol vers **z ≈ −37 mm** et **le corps s'est levé d'environ
+53 mm** (les bouts de patte, eux, ont parcouru 80 mm).
 
 | z bout de patte (mm) | −36,6 | −44,2 | −51,8 | −59,5 | −67,1 | −74,7 | −82,4 | −90,0 |
 |---|---|---|---|---|---|---|---|---|
 | Charge moyenne des fémurs | 6 % | 20 % | 27 % | 25 % | 30 % | 25 % | 25 % | 21 % |
+
+![Lever à 6 pattes : charge à chaque pas](graphs/lever_charge_vs_descente.png)
+
+*Charge en fin de pas pendant le lever. Avant le contact au sol (zone grise),
+les pattes bougent dans le vide. Les pics de « charge max » au début viennent
+de la patte 4 (ID 13), qui touche avant les autres. Après le contact, les
+fémurs portent 20 à 30 % et les tibias 5 à 17 %.*
+
+![Charge du fémur de chaque patte pendant l'essai](graphs/charge_femurs_temps.png)
+
+*Charge du fémur des 6 pattes, du début à la fin de l'essai (fond coloré =
+phase). Pendant le lever, la patte 4 (orange) porte nettement plus que les
+autres ; debout, les charges se stabilisent entre 3 et 25 %.*
 
 **Debout (z = −90 mm, `d_f` = 120 mm), charge moyenne sur 5 s :**
 
@@ -162,6 +192,17 @@ touchent donc le sol vers **z ≈ −38 mm** et **le corps s'est levé d'environ
 
 Pics pendant tout l'essai (transitoires) : ID 13 **92 %**, ID 7 83 %,
 ID 2 73 %, ID 1 72 %, ID 14 72 %, ID 8 72 %.
+
+![Répartition de la charge debout, par patte](graphs/charge_par_patte_debout.png)
+
+*Charge moyenne debout de chaque servo. Les pattes 2, 4 et 6 portent environ
+trois fois plus que les pattes 1 et 3 : leurs bouts de patte sont un peu plus
+bas (offsets à recaler, §3.4).*
+
+![Tension d'alimentation et température des servos](graphs/tension_temperature.png)
+
+*La tension oscille entre 9,8 et 10,8 V selon l'effort (batterie faible) ;
+la température reste à 37–38 °C pendant tout l'essai.*
 
 ### 3.4 Analyse
 
@@ -238,9 +279,25 @@ Dans `Dyna_test/gui/logs/` (séparateur `;`) :
 | `test_torque_<date>.json` | paramètres, résultat, pics de charge par servo, configuration des pattes et géométrie |
 
 La charge est en unités brutes (−1023 à +1023, le signe donne le sens).
-Pour l'avoir en % : `abs(charge) × 100 / 1023`.
+Pour l'avoir en % : `abs(charge) × 100 / 1023`. Les données de l'essai 1
+(réglages de compliance) sont dans `reglages_compliance_20261125.json`.
 
-### Exemple de graphique (Python + matplotlib)
+### Régénérer les graphiques
+
+```bash
+pip install matplotlib
+cd Dyna_test/gui
+python plot_torque.py                               # dernier essai test_torque
+python plot_torque.py test_torque_20261125_111436   # un essai precis
+python plot_torque.py --mass 1.8                    # masse pesee pour le graphique theorique
+```
+
+Les 6 images de ce document sont écrites dans `Dyna_test/graphs/` :
+`lever_charge_vs_descente.png`, `charge_femurs_temps.png`,
+`charge_par_patte_debout.png`, `tension_temperature.png`,
+`reglages_compliance.png`, `couple_theorique.png`.
+
+### Exemple de graphique fait à la main (Python + matplotlib)
 
 ```python
 import csv, matplotlib.pyplot as plt

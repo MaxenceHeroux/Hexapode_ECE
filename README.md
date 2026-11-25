@@ -10,14 +10,14 @@ et la documentation de mise en route.
 | Document | Contenu |
 |---|---|
 | [setup.md](setup.md) | Mise en route de la Raspberry Pi : connexion SSH (`ssh hexapode`), réseau et partage de connexion, VS Code, mises à jour, sauvegardes, synchronisation git PC ↔ Pi |
-| [dyna.md](dyna.md) | Servos Dynamixel : `leg_server` (Pi), interface graphique des 6 pattes et cinématique (PC), réglages des servos, port `/dev/u2d2`, `test_torque` |
-| [Torque_calcul.md](Torque_calcul.md) | Calcul du couple demandé aux servos, essais du 25/11/2026, résultats et graphiques |
+| [Dyna_test/dyna.md](Dyna_test/dyna.md) | Servos Dynamixel : `leg_server` (Pi), interface graphique des 6 pattes et cinématique (PC), réglages des servos, port `/dev/u2d2`, `test_torque` |
+| [Dyna_test/Torque_calcul.md](Dyna_test/Torque_calcul.md) | Calcul du couple demandé aux servos, essais du 25/11/2026, résultats et graphiques |
 
 ## Dossiers
 
 | Dossier | Contenu |
 |---|---|
-| [`Dyna_test/`](Dyna_test) | code Dynamixel : `src/leg_server.cpp`, `gui/` (interface, modèle, `test_torque`, mesures), règle udev, réglages |
+| [`Dyna_test/`](Dyna_test) | code Dynamixel : `src/leg_server.cpp`, `gui/` (interface, modèle, `test_torque`, mesures), règle udev, réglages, `dyna.md`, `Torque_calcul.md`, `graphs/` |
 | [`PCB/`](PCB) | carte d'alimentation / Dynamixel (KiCad, Gerbers, fichiers JLCPCB) |
 
 ## Démarrage rapide

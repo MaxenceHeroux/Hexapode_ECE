@@ -2,7 +2,7 @@
 
 Pilotage des 18 servos Dynamixel AX-12A de l'hexapode depuis la Raspberry Pi : serveur `leg_server` (C++), interface graphique et cinématique (Python, sur le PC), réglages des servos et lever du robot (`test_torque`).
 
-Connexion à la Pi, réseau et installation : [setup.md](setup.md). Calculs de couple et résultats des essais : [Torque_calcul.md](Torque_calcul.md).
+Connexion à la Pi, réseau et installation : [setup.md](../setup.md). Calculs de couple et résultats des essais : [Torque_calcul.md](Torque_calcul.md).
 
 ---
 
@@ -14,6 +14,9 @@ Connexion à la Pi, réseau et installation : [setup.md](setup.md). Calculs de c
 Dyna_test/
 ├── Makefile              compile src/*.cpp → bin/
 ├── .gitignore            ignore bin/, la config locale de l'interface, __pycache__
+├── dyna.md               ce document
+├── Torque_calcul.md      calculs de couple, essais et résultats (avec graphiques)
+├── graphs/               graphiques des essais (générés par gui/plot_torque.py)
 ├── leg_settings.txt      réglages des servos appliqués au démarrage de leg_server (§2.4)
 ├── udev/99-u2d2.rules    nom fixe /dev/u2d2 pour l'U2D2 (§1.7)
 ├── src/
@@ -22,6 +25,7 @@ Dyna_test/
     ├── leg_gui.py        interface : robot, pattes, réglages, cinématique (§2, §3)
     ├── hexapod_model.py  config des 6 pattes, conversions, cinématique (§3)
     ├── test_torque.py    lever du robot et mesures de couple (§3, Torque_calcul.md)
+    ├── plot_torque.py    graphiques des essais -> graphs/ (Torque_calcul.md §5)
     └── logs/             mesures des essais (CSV / JSON, versionnées)
 ```
 
