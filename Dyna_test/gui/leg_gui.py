@@ -60,8 +60,9 @@ DEFAULT_CONFIG = {
     "port": DEFAULT_PORT,
     "lengths_mm": {"coxa": 50, "femur": 75, "tibia": 125},   # tibia = genou -> bout de patte
     # Courbure du tibia : angle (deg) entre l'axe du servo du genou (direction "droite" du
-    # tibia) et la droite genou -> bout de patte. Le tibia du modele est cintre vers le corps.
-    "tibia_bend_deg": -30,
+    # tibia) et la droite genou -> bout de patte. Cale sur la vraie patte le 25/11/2026 :
+    # femur et tibia alignes -> bout de patte legerement au-dessus du corps (+5 deg).
+    "tibia_bend_deg": 5,
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : decalage du montage = angle de l'articulation quand le servo est a 512.
@@ -70,9 +71,9 @@ DEFAULT_CONFIG = {
         # 13 et 14 : sens verifie sur la vraie patte le 25/11/2026 (non inverses)
         {"name": "Coxa (hanche)", "id": 12, "inverted": True, "offset_deg": 0},
         {"name": "Femur",         "id": 13, "inverted": False, "offset_deg": 0},
-        # 14 : monte a 90 deg ; patte droite (tibia dans l'axe du femur) vers 793 = +82 deg
-        #      servo -> decalage -90 : articulation ~0 deg quand la patte est droite
-        {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -90},
+        # 14 : monte a ~90 deg ; femur et tibia alignes a 793 = +82 deg servo
+        #      -> decalage -82 : articulation 0 deg quand ils sont alignes
+        {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -82},
     ],
     # Mouvement de pas : ECARTS (deg) coxa, femur, tibia ajoutes a la pose de depart
     # (la pose au moment ou on clique "Demarrer le pas")

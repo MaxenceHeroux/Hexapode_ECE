@@ -781,13 +781,14 @@ alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB
 - **Décalage du montage** (« dec. » dans Géométrie) = angle de l'articulation
   quand le servo est à 512. Il s'applique partout : curseur, lecture, butées
   et dessin affichent l'angle de l'**articulation**, pas celui du servo.
-  Servo 14 monté à 90° : décalage **−90°** → patte droite (servo ≈ 793)
-  ≈ 0°. Changer un décalage ne fait pas bouger le servo (la consigne est
+  Servo 14 monté à ~90° : décalage **−82°** → fémur et tibia alignés
+  (servo ≈ 793) = 0°. Changer un décalage ne fait pas bouger le servo (la consigne est
   ré-exprimée avec le nouveau décalage).
 - **Courbure du tibia** : le tibia du modèle est cintré, le bout de patte
   n'est pas dans l'axe du servo du genou. Réglage « courbure tibia (deg) » =
-  angle entre l'axe du genou et la droite genou → bout de patte (défaut −30°,
-  à ajuster sur la vraie patte). Le tibia est dessiné courbe et la position du
+  angle entre l'axe du genou et la droite genou → bout de patte (**+5°**, calé
+  le 25/11/2026 : fémur et tibia alignés → bout de patte légèrement au-dessus
+  du corps). Le tibia est dessiné courbe et la position du
   bout de patte est affichée (distance à l'axe de la coxa, hauteur, en mm).
 - **Mouvements** : position neutre (512, avec confirmation), « consigne =
   position actuelle », et **pas en boucle** (lever → avancer en l'air → poser
