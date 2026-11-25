@@ -402,7 +402,7 @@ export ROS_LOCALHOST_ONLY=0
 | Coupures de quelques secondes | lien physique | §4.3 |
 | Heure fausse sur la Pi | pas de RTC + pas d'internet | rétablir internet, `timedatectl` |
 | `Dyna_test` : *Failed to open the port* | U2D2 non branché ou règle udev absente | `ls -l /dev/u2d2` ; réinstaller la règle (§13.7) |
-| `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK (§13.4) |
+| `Dyna_test` : *cannot open shared object libdxl_sbc_cpp.so* | DynamixelSDK non installé | réinstaller le SDK (§13.6) |
 | `Dyna_test` : servos sans réponse (`[TxRxResult] There is no status packet!`) | alimentation des servos, baudrate ou ID | vérifier l'alim 12 V, `BAUDRATE 1000000`, IDs 0 à 17 |
 
 ---
@@ -528,36 +528,31 @@ Test fait le 23/11/2026 : commit `eb328d9` (ajout des dossiers colcon au
 
 ---
 
-## 13. `Dyna_test` — programmes C++ Dynamixel AX-12A
+## 13. `Dyna_test` — programmes Dynamixel AX-12A
 
 ### 13.1 Contenu
 
 ```
 Dyna_test/
 ├── Makefile              compile src/*.cpp → bin/
-├── .gitignore            ignore bin/ (exécutables)
+├── .gitignore            ignore bin/, la config locale de l'interface, __pycache__
+├── leg_settings.txt      réglages des servos appliqués au démarrage de leg_server (§14.5)
 ├── udev/99-u2d2.rules    nom fixe /dev/u2d2 pour l'U2D2 (§13.7)
-├── gui/leg_gui.py        interface graphique de la patte, sur le PC (§14)
-└── src/
-    ├── leg_server.cpp    pilotage d'une patte (IDs 12/13/14) via TCP (§14)
-    ├── mv_hard_code.cpp  réglage des registres + mouvement prédéfini (18 servos)
-    └── my_read_write.cpp test aller-retour sur 2 servos (ID 1 et 2)
+├── src/
+│   └── leg_server.cpp    serveur TCP sur la Pi : pilote les 18 servos (§14, §15)
+└── gui/                  sur le PC (Python 3 + Tkinter)
+    ├── leg_gui.py        interface : robot, pattes, réglages, cinématique (§14, §15)
+    ├── hexapod_model.py  config des 6 pattes, conversions, cinématique (§15)
+    ├── test_torque.py    lever du robot et mesures de couple (§15, Torque_calcul.md)
+    └── logs/             mesures des essais (CSV / JSON, versionnées)
 ```
 
-Origine : récupéré depuis l'Ubuntu du dual boot du PC
-(`/home/maxou/Desktop/HEXAPODE/HEXAPODE/Dyna_test/src`, version du
-02/04/2026). Il n'y avait que les sources : le `Makefile` a été ajouté.
-Copie brute (avec les anciens exécutables x86_64) :
-`Backup\Ubuntu_dualboot\Dyna_test` sur le PC.
-
-### 13.2 Compiler et lancer
+### 13.2 Compiler
 
 ```bash
 ssh hexapode
 cd ~/Hexapode_ECE/Dyna_test
-make                     # -> bin/mv_hard_code et bin/my_read_write
-./bin/mv_hard_code       # mouvement prédéfini, en boucle
-./bin/my_read_write      # aller-retour servos 1 et 2 (touche = étape, Échap = quitter)
+make                     # -> bin/leg_server
 make clean               # supprime bin/
 ```
 
@@ -571,89 +566,57 @@ Avant de lancer :
 - alimenter les servos ;
 - `hexa-pi` est dans le groupe `dialout` → pas besoin de `sudo`.
 
-> ⚠️ `mv_hard_code` (avec `CONTINOUS_MOUVEMENT`) tourne **sans fin**. On
-> l'arrête avec `Ctrl+C`, et dans ce cas le couple des servos **n'est pas
-> coupé** (le code de désactivation après la boucle n'est jamais atteint).
-
-### 13.3 Paramètres communs
+### 13.3 Paramètres et registres
 
 | Paramètre | Valeur |
 |---|---|
 | Servos | AX-12A, **protocole 1.0** |
 | Port | `/dev/u2d2` (`DEVICENAME`), nom fixe donné par la règle udev |
 | Vitesse | `1000000` bauds (`BAUDRATE`) |
-| Nombre de servos | 18 (IDs 0 à 17, `DXL_NUMBER`) |
+| Nombre de servos | 18 (IDs 0 à 17) |
 | Position | 0–1023 (≈ 0–300°), 512 = milieu |
 
-Registres utilisés (table de contrôle AX-12A) :
+Registres de la table de contrôle AX-12A utilisés par `leg_server` :
 
-| Registre | Adresse | Usage dans le code |
+| Registre | Adresse | Usage |
 |---|---|---|
-| `TORQUE_ENABLE` | 24 | 1 au démarrage, 0 à la fin |
-| `CW_COMPLIANCE_MARGIN` | 26 | `0x01` |
-| `CCW_COMPLIANCE_MARGIN` | 27 | `0x01` |
-| `CW_COMPLIANCE_SLOPE` | 28 | `0x84` ou `0x20` selon le sens de montage |
-| `CCW_COMPLIANCE_SLOPE` | 29 | `0x20` ou `0x84` selon le sens de montage |
-| `GOAL_POSITION` | 30 (2 octets) | consigne, envoyée à tous les servos d'un coup (`GroupSyncWrite`) |
-| `MOVING_SPEED` | 32 (2 octets) | défini, non utilisé |
-| `PRESENT_POSITION` | 36 (2 octets) | relu pour attendre la fin du mouvement |
-| `PRESENT_SPEED` | 38 | défini, non utilisé |
-| `PRESENT_VOLTAGE` | 42 | lu sur le servo 0 et affiché au démarrage |
-| `PUNCH` | 48 (2 octets) | `100` |
+| `CW / CCW_ANGLE_LIMIT` | 6 / 8 (EEPROM) | butées |
+| `MAX_TORQUE` | 14 (EEPROM) | valeur remise dans la limite de couple au reset |
+| `TORQUE_ENABLE` | 24 | couple ON / OFF |
+| `CW / CCW_COMPLIANCE_MARGIN` | 26 / 27 | zone morte |
+| `CW / CCW_COMPLIANCE_SLOPE` | 28 / 29 | souplesse (« PID » des AX, §14.3) |
+| `GOAL_POSITION` | 30 | consigne (SyncWrite pour plusieurs servos) |
+| `MOVING_SPEED` | 32 | vitesse |
+| `TORQUE_LIMIT` | 34 | limite de couple (RAM, mise à 0 en cas d'alarme) |
+| `PRESENT_POSITION / SPEED / LOAD` | 36 / 38 / 40 | lecture |
+| `PRESENT_VOLTAGE / TEMPERATURE` | 42 / 43 | lecture |
+| `MOVING` | 46 | lecture |
+| `PUNCH` | 48 | courant minimal |
 
-### 13.4 `mv_hard_code.cpp` en détail
+Toute la table (adresses 0–49) est lue en un seul paquet par servo à chaque `STATE`.
 
-1. Ouvre le port, règle 1 Mbaud, affiche la tension (servo 0).
-2. `Set_dyna()` pour chaque servo 0→17 : couple ON, punch 100, marges et
-   pentes de compliance. Les pentes CW/CCW sont **inversées** pour les servos
-   montés à l'envers.
-3. Boucle infinie : envoie l'étape suivante du tableau
-   `dxl_goal_position[11][18]` aux 18 servos via `GroupSyncWrite`, puis
-   **attend que les 18 servos soient arrivés** (écart < 10) avant de passer à
-   l'étape suivante, avec un délai max de 2 s (`WAIT_TIMEOUT_MS`) ; en cas de
-   dépassement, message `[Etape N] timeout …` et on continue. Pause de 0,2 s
-   entre les étapes.
+### 13.4 Anciens programmes (supprimés le 25/11/2026)
 
-**Servos montés à l'envers** (`Is_inverted()`) : IDs **0, 1, 2, 12, 13, 14,
-15, 16, 17**. Pour eux la consigne envoyée est `1024 - position`.
+`mv_hard_code.cpp` (réglage des registres et mouvement prédéfini des 18
+servos, récupéré depuis l'Ubuntu du dual boot, version du 02/04/2026) et
+`my_read_write.cpp` (aller-retour sur les servos 1 et 2) ont été retirés :
+`leg_server`, l'interface et `test_torque` les remplacent. Ce qu'ils
+apportaient est repris :
+- les réglages de compliance et de punch (§14.3, §14.5) ;
+- le sens des servos « inversés » (0-2, 12-14, 15-17) = pattes de droite (§15.1).
 
-**Mouvement prédéfini** (`dxl_goal_position`, ligne ~246), avec
-`MIN = 400` et `MAX = 550` :
+Ils restent disponibles :
+- dans l'historique git : `git show daf52c3:Dyna_test/src/mv_hard_code.cpp`
+  (version d'origine) et `git show 14d4b57:Dyna_test/src/mv_hard_code.cpp`
+  (version corrigée, avec `/dev/u2d2`) ;
+- dans la copie brute sur le PC : `Backup\Ubuntu_dualboot\Dyna_test`.
 
-| Étape | Servos 0–2 | Servo 3 | Servo 4 | Servos 5–17 |
-|---|---|---|---|---|
-| 0 | MIN | MIN | MIN | MIN |
-| 1 | MAX | MAX | MAX | MAX |
-| 2 | MAX | MAX | 200 | MAX |
-| 3, 5, 7, 9 | MAX | 700 | 200 | MAX |
-| 4, 6, 8, 10 | MAX | 400 | 200 | MAX |
+### 13.5 Réglages au démarrage
 
-→ tout le robot se met en position MAX, puis une patte (servos 3 et 4) fait
-des allers-retours. Le programme démarre à l'étape **1** (`index = 1`) et
-reboucle sur l'étape 1 après la 10 : l'étape 0 n'est jamais jouée.
-
-Options de compilation dans le code :
-- `#define CONTINOUS_MOUVEMENT` : enchaînement automatique (sinon une touche
-  par étape, Échap pour quitter) ;
-- `#define DEBUG` : affiche consigne / position de chaque servo (le code
-  contient `XXXDEBUG`, donc désactivé).
-
-**Corrections apportées le 23/11/2026** (par rapport à la version du dual boot) :
-- la boucle d'attente avait sa condition inversée
-  (`while(is_all_on_goal_position(...))`) et n'attendait donc pas les servos →
-  corrigé en `while(!is_all_on_goal_position(...))`, avec un délai max de 2 s
-  pour ne jamais bloquer si un servo n'atteint pas sa consigne ;
-- pour les servos inversés, la position lue était comparée à la consigne
-  **non inversée** → la consigne réellement envoyée est mémorisée
-  (`sent_goal[]`) et c'est elle qui sert à la comparaison (et à l'affichage `DEBUG`) ;
-- `DEVICENAME` : `/dev/ttyUSB0` → `/dev/u2d2`.
-
-### 13.5 `my_read_write.cpp`
-
-Test simple sur **deux servos (ID 1 et 2)** : à chaque touche, ils vont
-ensemble à `400` puis `600` (alternance), avec affichage de la position
-lue. Même réglage de couple, punch et compliance. Échap pour quitter (le
-couple est alors coupé).
+`leg_server` exécute au lancement les commandes de `Dyna_test/leg_settings.txt`
+(une commande du protocole par ligne), car les réglages de compliance, punch,
+vitesse et limite de couple des AX sont en RAM et perdus hors tension. Voir
+§14.5.
 
 ### 13.6 DynamixelSDK sur la Pi
 
@@ -920,7 +883,7 @@ le sens trigo à partir de l'avant droite) :
 | 5 | arrière gauche | 9 / 10 / 11 | normal, inversé, inversé |
 | 6 | milieu gauche | 6 / 7 / 8 | normal, inversé, inversé |
 
-Côté droit = 0-2, 12-14, 15-17 (les servos « inversés » de `mv_hard_code`) :
+Côté droit = 0-2, 12-14, 15-17 (les servos « inversés » de l'ancien `mv_hard_code`, §13.4) :
 même sens que la patte 4 calibrée. Côté gauche : sens opposé — **hypothèse à
 vérifier patte par patte** (case « Monté inversé ») ; offsets à 0 sauf
 réglage.

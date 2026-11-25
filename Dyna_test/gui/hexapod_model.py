@@ -27,7 +27,7 @@ JOINT_NAMES = ("Coxa (hanche)", "Femur", "Tibia")
 # Disposition des pattes (donnee le 25/11/2026) : patte 2 = 0/1/2, patte 1 = 3/4/5,
 # patte 6 = 6/7/8, puis 5 = 9/10/11, 4 = 12/13/14, 3 = 15/16/17 (IDs par triplets en
 # tournant dans le sens trigo a partir de l'avant droite). Cote droit = 0-2, 12-14, 15-17
-# (les servos "inverses" de mv_hard_code) : sens calibre sur la patte 12/13/14 ; cote
+# (les servos "inverses" de l'ancien mv_hard_code) : sens calibre sur la patte 12/13/14 ; cote
 # gauche = sens oppose (a verifier patte par patte dans l'interface).
 _RIGHT = {"inverted": [True, False, False]}           # sens calibre sur la patte 12/13/14
 _LEFT = {"inverted": [False, True, True]}             # miroir (a verifier)
