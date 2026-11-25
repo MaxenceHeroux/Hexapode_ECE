@@ -66,6 +66,7 @@ DEFAULT_CONFIG = {
     # "along" = dans l'axe du genou (+ = plus loin), "perp" = perpendiculaire (+ = vers le
     # haut quand la patte est horizontale).
     "foot_offset_mm": {"along": 0, "perp": 0},
+    "show_limits": True,      # lignes rouges des butees CW / CCW sur le dessin
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : decalage du montage = angle de l'articulation quand le servo est a 512.
@@ -460,8 +461,13 @@ class LegApp(tk.Tk):
         self.side_cv = tk.Canvas(draw, width=340, height=300, bg="white", highlightthickness=1,
                                  highlightbackground="#ccc")
         self.side_cv.pack()
-        ttk.Label(draw, text="trait plein = position reelle, pointilles = consigne",
-                  foreground="gray").pack(anchor="w")
+        leg = ttk.Frame(draw)
+        leg.pack(fill="x")
+        ttk.Label(leg, text="trait plein = reel, pointilles = consigne",
+                  foreground="gray").pack(side="left")
+        self.show_limits = tk.BooleanVar(value=bool(self.cfg.get("show_limits", True)))
+        ttk.Checkbutton(leg, text="Afficher butees (rouge)", variable=self.show_limits,
+                        command=self.on_show_limits).pack(side="right")
 
         # --- geometrie
         geo = ttk.LabelFrame(draw, text="Geometrie (mm) et decalages (deg a 512)", padding=4)
@@ -738,11 +744,51 @@ class LegApp(tk.Tk):
 
         tgt = self.joint_angles("target")
         real = self.joint_angles("pos")
+        if self.show_limits.get():
+            self.draw_limits(real or tgt, cv, (ox, oy, sc), sv, (sx, sy, sc2))
         top(tgt, "ghost")
         side(tgt, "ghost")
         if real:
             top(real, "real")
             side(real, "real")
+
+    def draw_limits(self, pose, top_cv, top_frame, side_cv, side_frame):
+        """Lignes rouges des butees CW / CCW (registres 6 / 8) de chaque servo, partant de
+        l'axe de son articulation : 12 en vue de dessus, 13 et 14 en vue de cote. Pour le
+        tibia, la ligne suit la direction du bout de patte (courbure incluse)."""
+        red = "#d32f2f"
+        L = self.cfg["lengths_mm"]
+        lims = []
+        for i, p in enumerate(self.panels):
+            s = self.servo_state(i)
+            lims.append((p.to_deg(s["cw_limit"]), p.to_deg(s["ccw_limit"]))
+                        if s and s.get("ok") else None)
+
+        def ray(canvas, x, y, ang_deg, length, label):
+            a = math.radians(ang_deg)
+            x2, y2 = x + length * math.cos(a), y - length * math.sin(a)
+            canvas.create_line(x, y, x2, y2, fill=red, width=2)
+            canvas.create_text(x2 + 12 * math.cos(a), y2 - 12 * math.sin(a), text=label,
+                               fill=red, font=("Segoe UI", 7))
+
+        ox, oy, sc = top_frame
+        sx, sy, sc2 = side_frame
+        if lims[0]:                                     # coxa (12), vue de dessus
+            for ang, lab in zip(lims[0], ("CW", "CCW")):
+                ray(top_cv, ox, oy, ang, (L["coxa"] + L["femur"]) * sc, lab)
+        if lims[1]:                                     # femur (13), depuis son axe
+            for ang, lab in zip(lims[1], ("CW", "CCW")):
+                ray(side_cv, sx + L["coxa"] * sc2, sy, ang, L["femur"] * sc2, lab)
+        if lims[2]:                                     # tibia (14), depuis le genou
+            g = self.leg_geometry(pose)
+            kx, ky = sx + g["knee"][0] * sc2, sy - g["knee"][1] * sc2
+            bend = float(self.cfg.get("tibia_bend_deg", 0))
+            for ang, lab in zip(lims[2], ("CW", "CCW")):
+                ray(side_cv, kx, ky, pose[1] + ang + bend, L["tibia"] * sc2, lab)
+
+    def on_show_limits(self):
+        self.cfg["show_limits"] = bool(self.show_limits.get())
+        save_config(self.cfg)
 
     def leg_geometry(self, angles):
         """Positions dans le plan de la patte (r = distance a l'axe de la coxa, z = hauteur,

@@ -767,6 +767,11 @@ alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB
   trait plein = position réelle lue sur les servos, pointillés = consigne.
   Dessin approximatif d'après le modèle SolidWorks *Hexapod Bas1ma Haz1r* :
   coxa ≈ 50 mm, fémur ≈ 75 mm, tibia ≈ 125 mm (modifiables).
+- **Butées en rouge** (case « Afficher butées (rouge) » sous les dessins,
+  mémorisée) : pour chaque servo, une ligne CW et une ligne CCW (registres
+  6 / 8, lus sur le servo) partant de l'axe de l'articulation : coxa (12) en
+  vue de dessus, fémur (13) et tibia (14) en vue de côté ; pour le tibia la
+  ligne suit la direction du bout de patte (courbure incluse).
 - **Par servo** : curseur de consigne en degrés, couple ON/OFF, lecture
   (position, charge %, température, tension, en mouvement), réglages, butées.
 - **ARRÊT COUPLE** (rouge) : couple OFF sur les 3 servos, arrête le pas.
