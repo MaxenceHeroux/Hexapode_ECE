@@ -1,0 +1,146 @@
+{
+  "Dyna_test/gui/hexapod_model.py": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7761734,
+    "ast_hash": "162a782ae8b0d2dd7afb73119c73a5cb",
+    "semantic_hash": "162a782ae8b0d2dd7afb73119c73a5cb"
+  },
+  "Dyna_test/gui/leg_gui.py": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7761765,
+    "ast_hash": "25edae1f401768d27bec13f201169670",
+    "semantic_hash": "25edae1f401768d27bec13f201169670"
+  },
+  "Dyna_test/gui/logs/reglages_compliance_20261125.json": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7761781,
+    "ast_hash": "694e3f80579daf753fead3d2f471a56d",
+    "semantic_hash": "694e3f80579daf753fead3d2f471a56d"
+  },
+  "Dyna_test/gui/logs/test_torque_20261125_111436.json": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7761798,
+    "ast_hash": "dac9b897779a7739aff26f901746610b",
+    "semantic_hash": "dac9b897779a7739aff26f901746610b"
+  },
+  "Dyna_test/gui/logs/test_torque_20261125_114429.json": {
+    "mtime": 1795610917.652356,
+    "seen": 1795615929.776181,
+    "ast_hash": "35f25b06f9eb79262d9e0b8761c54902",
+    "semantic_hash": "35f25b06f9eb79262d9e0b8761c54902"
+  },
+  "Dyna_test/gui/logs/test_torque_20261125_114521.json": {
+    "mtime": 1795610917.652356,
+    "seen": 1795615929.7761822,
+    "ast_hash": "316741c27a47637ecc4893598ff40ebd",
+    "semantic_hash": "316741c27a47637ecc4893598ff40ebd"
+  },
+  "Dyna_test/gui/plot_torque.py": {
+    "mtime": 1795610917.652356,
+    "seen": 1795615929.7761836,
+    "ast_hash": "a8e6d055d92ddc9d80e41ecbc29bb4c4",
+    "semantic_hash": "a8e6d055d92ddc9d80e41ecbc29bb4c4"
+  },
+  "Dyna_test/gui/test_torque.py": {
+    "mtime": 1795610917.6533558,
+    "seen": 1795615929.7761848,
+    "ast_hash": "caafb4c818f43500d412a9d1e40a6531",
+    "semantic_hash": "caafb4c818f43500d412a9d1e40a6531"
+  },
+  "Dyna_test/src/leg_server.cpp": {
+    "mtime": 1795610917.6563559,
+    "seen": 1795615929.7761862,
+    "ast_hash": "cd2fe5ad5faad7169a2c203e43b051fa",
+    "semantic_hash": "cd2fe5ad5faad7169a2c203e43b051fa"
+  },
+  "Dyna_test/Torque_calcul.md": {
+    "mtime": 1795610917.6483557,
+    "seen": 1795615929.7761874,
+    "ast_hash": "eaf51a112a8da4cd921d3b9ffe04727b",
+    "semantic_hash": "eaf51a112a8da4cd921d3b9ffe04727b"
+  },
+  "Dyna_test/dyna.md": {
+    "mtime": 1795610917.6483557,
+    "seen": 1795615929.7761884,
+    "ast_hash": "f3e2c354dbdecc9aab154eff23809427",
+    "semantic_hash": "f3e2c354dbdecc9aab154eff23809427"
+  },
+  "Dyna_test/leg_settings.txt": {
+    "mtime": 1795610917.6563559,
+    "seen": 1795615929.7761898,
+    "ast_hash": "589568b6eccb84a6c188dcf7e2924af9",
+    "semantic_hash": "589568b6eccb84a6c188dcf7e2924af9"
+  },
+  "README.md": {
+    "mtime": 1795610917.687357,
+    "seen": 1795615929.7761912,
+    "ast_hash": "ed668b354bf87759eb4a8587e8f3fcdd",
+    "semantic_hash": "ed668b354bf87759eb4a8587e8f3fcdd"
+  },
+  "setup.md": {
+    "mtime": 1795610917.687357,
+    "seen": 1795615929.7761922,
+    "ast_hash": "09db446b3e1819928a59fe91c8b4e903",
+    "semantic_hash": "09db446b3e1819928a59fe91c8b4e903"
+  },
+  "tps_archi.md": {
+    "mtime": 1795610917.687357,
+    "seen": 1795615929.7761936,
+    "ast_hash": "1d48635316c202b930bb1a17678e300b",
+    "semantic_hash": "1d48635316c202b930bb1a17678e300b"
+  },
+  "PCB/Alim_SDK_hex_pcb/jlcpcb/gerber/Alim_SDK_hex_pcb-NPTH-drl_map.pdf": {
+    "mtime": 1795610917.6853569,
+    "seen": 1795615929.7761946,
+    "ast_hash": "661faca41b3ec4ca7fdd28952162c40e",
+    "semantic_hash": "661faca41b3ec4ca7fdd28952162c40e"
+  },
+  "PCB/Alim_SDK_hex_pcb/jlcpcb/gerber/Alim_SDK_hex_pcb-PTH-drl_map.pdf": {
+    "mtime": 1795610917.6853569,
+    "seen": 1795615929.7761958,
+    "ast_hash": "cc1d2f164717c2972881fa563eb7df1e",
+    "semantic_hash": "cc1d2f164717c2972881fa563eb7df1e"
+  },
+  "Dyna_test/graphs/charge_femurs_temps.png": {
+    "mtime": 1795610917.6493556,
+    "seen": 1795615929.776197,
+    "ast_hash": "9f11b773d42c6e2b05c8cfd6dd56767f",
+    "semantic_hash": "9f11b773d42c6e2b05c8cfd6dd56767f"
+  },
+  "Dyna_test/graphs/charge_par_patte_debout.png": {
+    "mtime": 1795610917.6493556,
+    "seen": 1795615929.7761981,
+    "ast_hash": "247438b4b12a98972cdd0976df707073",
+    "semantic_hash": "247438b4b12a98972cdd0976df707073"
+  },
+  "Dyna_test/graphs/couple_theorique.png": {
+    "mtime": 1795610917.6503558,
+    "seen": 1795615929.7761993,
+    "ast_hash": "da470be97d84a70c04505aa2a21369ef",
+    "semantic_hash": "da470be97d84a70c04505aa2a21369ef"
+  },
+  "Dyna_test/graphs/lever_charge_vs_descente.png": {
+    "mtime": 1795610917.6503558,
+    "seen": 1795615929.7762005,
+    "ast_hash": "820cf2b2dd559972141cd8f8560f4335",
+    "semantic_hash": "820cf2b2dd559972141cd8f8560f4335"
+  },
+  "Dyna_test/graphs/reglages_compliance.png": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7762017,
+    "ast_hash": "c32b9ea4451d2d94e5dd50b70c350fa4",
+    "semantic_hash": "c32b9ea4451d2d94e5dd50b70c350fa4"
+  },
+  "Dyna_test/graphs/tension_temperature.png": {
+    "mtime": 1795610917.6513557,
+    "seen": 1795615929.7762036,
+    "ast_hash": "4478fcaffb0b255746b76619dd771fcd",
+    "semantic_hash": "4478fcaffb0b255746b76619dd771fcd"
+  },
+  "Dyna_test/img/interface_leg_gui.png": {
+    "mtime": 1795610917.6563559,
+    "seen": 1795615929.7762046,
+    "ast_hash": "7614ba7f9fab4e1903ee7c3291965995",
+    "semantic_hash": "7614ba7f9fab4e1903ee7c3291965995"
+  }
+}

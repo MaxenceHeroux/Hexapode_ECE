@@ -12,3 +12,8 @@ fp-info-cache
 build/
 install/
 log/
+
+# graphify : cache et fichiers locaux (le graphe lui-meme est versionne)
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
