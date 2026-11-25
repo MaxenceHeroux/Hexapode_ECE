@@ -40,6 +40,7 @@
 // Reconnexion automatique : si l'U2D2 decroche et revient (parasites quand les servos
 // tirent du courant -> nouveau /dev/ttyUSBx), le port /dev/u2d2 est rouvert tout seul.
 
+#include <algorithm>
 #include <climits>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -65,6 +66,7 @@
 #define BAUDRATE          1000000
 #define PROTOCOL_VERSION  1.0
 #define DEFAULT_PORT      5555
+#define MAX_CLIENTS       4             // interface + test_torque + nc... en meme temps
 
 // Table de controle AX-12A / AX-18F
 #define ADDR_CW_ANGLE_LIMIT    6    // 2 octets, EEPROM
@@ -455,51 +457,73 @@ int main(int argc, char **argv) {
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(tcp_port);
-  if (bind(srv, (sockaddr *)&addr, sizeof(addr)) < 0 || listen(srv, 1) < 0) {
+  if (bind(srv, (sockaddr *)&addr, sizeof(addr)) < 0 || listen(srv, 4) < 0) {
     perror("bind/listen"); return 1;
   }
-  printf("En attente de l'interface sur le port TCP %d (Ctrl+C pour quitter)...\n", tcp_port);
+  printf("En attente des clients sur le port TCP %d (jusqu'a %d en meme temps, Ctrl+C pour quitter)...\n",
+         tcp_port, MAX_CLIENTS);
   fflush(stdout);
 
-  int cli = -1;
-  std::string buf;
+  // Plusieurs clients en meme temps (ex. interface + test_torque) : les commandes sont
+  // traitees une par une dans ce seul thread, donc jamais deux acces simultanes au bus.
+  struct Client { int fd; std::string buf; std::string from; };
+  std::vector<Client> clients;
   while (g_running) {
-    pollfd pf = { cli >= 0 ? cli : srv, POLLIN, 0 };
-    int n = poll(&pf, 1, 200);
+    std::vector<pollfd> pf;
+    pf.push_back({srv, POLLIN, 0});
+    for (auto &c : clients) pf.push_back({c.fd, POLLIN, 0});
+    int n = poll(pf.data(), pf.size(), 200);
     if (n <= 0) continue;
 
-    if (cli < 0) {
+    if (pf[0].revents & POLLIN) {
       sockaddr_in ca{}; socklen_t cl = sizeof(ca);
-      cli = accept(srv, (sockaddr *)&ca, &cl);
-      if (cli >= 0) {
-        setsockopt(cli, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-        printf("Interface connectee depuis %s\n", inet_ntoa(ca.sin_addr));
-        fflush(stdout);
-        buf.clear();
+      int fd = accept(srv, (sockaddr *)&ca, &cl);
+      if (fd >= 0) {
+        if ((int)clients.size() >= MAX_CLIENTS) {
+          const char *m = "ERR trop de clients connectes\n";
+          send(fd, m, strlen(m), 0);
+          close(fd);
+        } else {
+          setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+          clients.push_back({fd, "", inet_ntoa(ca.sin_addr)});
+          printf("Client connecte depuis %s (%zu connecte(s))\n", clients.back().from.c_str(), clients.size());
+          fflush(stdout);
+        }
       }
-      continue;
     }
 
-    char tmp[1024];
-    ssize_t r = recv(cli, tmp, sizeof(tmp), 0);
-    if (r <= 0) {
-      printf("Interface deconnectee\n"); fflush(stdout);
-      close(cli); cli = -1; continue;
+    for (size_t i = 1; i < pf.size(); i++) {
+      if (!(pf[i].revents & (POLLIN | POLLHUP | POLLERR))) continue;
+      Client &c = clients[i - 1];
+      char tmp[1024];
+      ssize_t r = recv(c.fd, tmp, sizeof(tmp), 0);
+      if (r <= 0) {
+        close(c.fd);
+        c.fd = -1;
+        continue;
+      }
+      c.buf.append(tmp, r);
+      size_t nl;
+      while ((nl = c.buf.find('\n')) != std::string::npos) {
+        std::string line = c.buf.substr(0, nl);
+        c.buf.erase(0, nl + 1);
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        std::string rep = handle(line) + "\n";
+        send(c.fd, rep.data(), rep.size(), 0);
+      }
     }
-    buf.append(tmp, r);
-    size_t nl;
-    while ((nl = buf.find('\n')) != std::string::npos) {
-      std::string line = buf.substr(0, nl);
-      buf.erase(0, nl + 1);
-      if (!line.empty() && line.back() == '\r') line.pop_back();
-      std::string rep = handle(line) + "\n";
-      send(cli, rep.data(), rep.size(), 0);
+    size_t before = clients.size();
+    clients.erase(std::remove_if(clients.begin(), clients.end(), [](const Client &c) { return c.fd < 0; }),
+                  clients.end());
+    if (clients.size() != before) {
+      printf("Client deconnecte (%zu connecte(s))\n", clients.size());
+      fflush(stdout);
     }
   }
 
   printf("\nArret : couple coupe sur les servos.\n");
   torque_all(0);
-  if (cli >= 0) close(cli);
+  for (auto &c : clients) close(c.fd);
   close(srv);
   port->closePort();
   return 0;

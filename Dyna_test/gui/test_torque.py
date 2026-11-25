@@ -68,17 +68,26 @@ class Robot:
                 self.f = self.sock.makefile("r", encoding="utf-8")
             except OSError as e:
                 if not dry:
-                    raise
+                    raise Abort(f"connexion impossible a {host}:{port} ({e}) : leg_server lance sur la Pi ?")
                 print(f"(simulation sans serveur : {e})")
 
     def rpc(self, line, force=False):
         """Envoie une commande. En simulation, seules les lectures partent au serveur."""
         if self.sock is None or (self.dry and not force):
             return "OK (simulation)"
-        self.sock.sendall((line + "\n").encode())
-        rep = self.f.readline()
+        try:
+            self.sock.sendall((line + "\n").encode())
+            rep = self.f.readline()
+        except (socket.timeout, TimeoutError):
+            raise Abort(f"pas de reponse de leg_server a '{line.split()[0]}' en 5 s : serveur occupe "
+                        "par un autre client (ancienne version : un seul client a la fois, fermer "
+                        "l'interface) ou bloque")
+        except OSError as e:
+            raise Abort(f"liaison avec leg_server perdue ({e})")
         if not rep:
             raise Abort("serveur deconnecte")
+        if rep.startswith("ERR trop de clients"):
+            raise Abort("leg_server : trop de clients connectes (fermer une interface)")
         return rep.strip()
 
     def state(self):
