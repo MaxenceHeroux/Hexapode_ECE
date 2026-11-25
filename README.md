@@ -963,6 +963,8 @@ pose est hors d'atteinte / hors butées, ou sur Ctrl+C. Mesures (charge max
 et servo concerné, charge moyenne des fémurs, écart de position,
 température, à chaque pas) enregistrées dans `gui/logs/test_torque_*.json`.
 
+**Calculs de couple, essais et résultats : [`Torque_calcul.md`](Torque_calcul.md).** Le 25/11/2026, le robot s'est levé à 6 pattes (49 poses atteintes, 17 % de charge moyenne des fémurs debout).
+
 Avant le premier essai réel : configurer les 6 pattes dans l'interface
 (IDs, sens, offsets, montage), régler des butées, et vérifier le plan avec
 `--dry-run`.

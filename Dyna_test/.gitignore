@@ -1,5 +1,4 @@
 bin/
 gui/leg_gui_config.json
 gui/__pycache__/
-gui/logs/
 gui/_test_cfg.json
