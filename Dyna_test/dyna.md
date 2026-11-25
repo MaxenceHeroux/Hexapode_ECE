@@ -168,13 +168,56 @@ Une patte = 3 servos : **ID 12 = coxa** (hanche, rotation horizontale),
 
 ### 2.1 Lancer
 
-Sur la Pi (laisser tourner) :
+#### `leg_server` : à lancer à la main, puis le laisser tourner
+
+`leg_server` **ne démarre pas tout seul** : il n'y a pas de service au démarrage
+de la Pi. Une fois lancé, il **tourne en continu** : pas besoin de l'arrêter
+entre deux essais, l'interface et `test_torque` s'y connectent et s'en
+déconnectent quand ils veulent.
+
+| Situation | Action |
+|---|---|
+| Pi allumée ou redémarrée, robot branché | **lancer** `leg_server` (commande ci-dessous) |
+| Entre deux essais, interface fermée / rouverte | rien : il tourne toujours |
+| Après une mise à jour de `leg_server.cpp` (`git pull`) | recompiler et **relancer sans lâcher le robot** (ci-dessous) |
+| Fin de séance | robot reposé au sol, puis **arrêter** (coupe le couple) |
+
+**Lancer** (en arrière-plan, on peut fermer la session SSH ensuite) :
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_hexapode hexa-pi@192.168.137.10
-cd ~/Hexapode_ECE/Dyna_test && make && ./bin/leg_server
-#   ./bin/leg_server 12 13 14 5555   (autres IDs / port)
+ssh hexapode "cd ~/Hexapode_ECE/Dyna_test && make && (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
 ```
+
+**Vérifier qu'il tourne** et voir son journal :
+
+```bash
+ssh hexapode "pgrep -a leg_server; tail /tmp/leg_server.log"
+```
+
+**Arrêter** : **coupe le couple de tous les servos** (le robot debout tombe).
+Reposer le robot au sol avant :
+
+```bash
+ssh hexapode "pkill -x leg_server"
+```
+
+**Relancer après une mise à jour, sans couper le couple** (`kill -9` arrête le
+serveur sans passer par la coupure du couple : les servos gardent leur
+position) :
+
+```bash
+ssh hexapode "cd ~/Hexapode_ECE && git pull && cd Dyna_test && make && pkill -9 -x leg_server; sleep 1; (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
+```
+
+Au lancement, `leg_server` scanne les 18 servos et applique
+`leg_settings.txt` (§1.5). Pour ne gérer que certains IDs ou changer de port :
+`./bin/leg_server 12 13 14` ou `./bin/leg_server --port 5556`. En
+lancement direct dans le terminal (`./bin/leg_server` sans `nohup`),
+`Ctrl+C` l'arrête et coupe le couple.
+
+> Le journal est dans `/tmp` : il est effacé au redémarrage de la Pi.
+
+#### Interface sur le PC
 
 Sur le PC (Python 3, Tkinter inclus, rien à installer) :
 
@@ -188,8 +231,6 @@ python leg_gui.py <ip> [port]
 rester ouverte pendant `test_torque` (elle affiche le robot en direct). Les
 commandes sont traitées une par une, donc jamais deux accès simultanés au bus.
 Éviter quand même de bouger les curseurs pendant un essai.
-
-`Ctrl+C` sur `leg_server` **coupe le couple** des 3 servos avant de quitter.
 
 **Reconnexion automatique de l'U2D2.** Quand les servos bougent, l'U2D2 peut
 décrocher de l'USB et revenir 0,3 s plus tard sous un autre nom

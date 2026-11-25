@@ -1,2 +1,4 @@
 date;resultat;rayon_mm;z_debout_mm;pas_mm;vitesse;hauteur_levee_mm;charge_max_pct;id_charge_max;temp_max;tension_min_V;duree_s;fichier
 20261125_111436;debout;170.0;-90.0;4;80;80.1;92;13;38;9.8;28;test_torque_20261125_111436
+20261125_114429;debout;170.0;-90.0;4;80;80.0;90;13;34;9.7;49;test_torque_20261125_114429
+20261125_114521;debout;170.0;-90.0;4;80;80.0;98;13;37;9.7;49;test_torque_20261125_114521
