@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS pour l'hexapode : decouverte en UNICAST entre la Pi et le PC
+  (cable Ethernet, reseau 192.168.137.0/24). Voir tps_archi.md section 7.1.
+  HEXAPODE_IFACE (interface du cable) est fixee par ros2_ws/hexapode_env.sh.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="${HEXAPODE_IFACE:-eth0}" multicast="false"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>60</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer Address="192.168.137.1"/>   <!-- PC -->
+        <Peer Address="192.168.137.10"/>  <!-- Raspberry Pi -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
