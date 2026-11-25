@@ -436,6 +436,9 @@ l'ancienne config une patte est reprise automatiquement). Le code commun
 
 ### 3.2 `test_torque.py` : faire bouger tout le robot
 
+**Mode d'emploi complet, options (dont `--home`, étoile de mer) et essais :
+[`test_torque.md`](test_torque.md).**
+
 ```bash
 cd Dyna_test/gui
 python test_torque.py --dry-run        # lit le robot, calcule et verifie tout, ne bouge rien

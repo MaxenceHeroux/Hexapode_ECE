@@ -12,6 +12,9 @@ Deroule (robot pose au sol, corps sur le sol) :
   2. RAPPROCHER (si --radius) : par trepieds, chaque patte se leve de --clear mm, va a
                 --radius mm de l'axe de sa hanche et se repose a la hauteur de depart.
                 Bras de levier plus court = moins de couple pour se lever.
+     (--home)   : idem, mais chaque patte va aussi dans l'axe de son montage (coxa a 0 deg,
+                "etoile de mer") a --radius mm (175 par defaut) : pose de depart standard,
+                quelle que soit la pose ou on a laisse le robot.
   3. LEVER    : tous les bouts de patte descendent par pas de --step mm jusqu'a --stand-z
                 (hauteur du bout de patte sous l'axe des hanches). A CHAQUE PAS on attend
                 que les 18 servos soient arrives (ecart <= --tol) : pas de passage au pas
@@ -172,6 +175,12 @@ class TorqueTest:
         d = math.hypot(dx, dy) or 1.0
         return (m["x"] + dx / d * radius, m["y"] + dy / d * radius, foot[2])
 
+    def at_home(self, leg, foot, radius):
+        """Dans l'axe du montage de la patte (coxa a 0 deg), a `radius` mm de la hanche."""
+        m = leg["mount"]
+        a = math.radians(m["angle"])
+        return (m["x"] + math.cos(a) * radius, m["y"] + math.sin(a) * radius, foot[2])
+
     def levers(self, feet):
         """Bras de levier horizontaux moyens (mm) : femur (axe femur -> bout) et tibia
         (genou -> bout), dans le plan de chaque patte."""
@@ -287,13 +296,15 @@ class TorqueTest:
         z0 = a.start_z if a.start_z is not None else max(z for _, _, z in start)
         base = [(x, y, z0) for (x, y, _) in start]
         out = []
-        if a.radius:
+        if a.radius or a.home:
+            radius = a.radius or 175.0
+            target = self.at_home if a.home else self.at_radius
             order = sorted(range(6), key=lambda k: self.legs[k]["mount"]["angle"])
             cur = list(base)
             for grp in (order[0::2], order[1::2]):
                 up = [(x, y, z + a.clear) if k in grp else (x, y, z) for k, (x, y, z) in enumerate(cur)]
                 out.append(("rapprocher", "lever trepied", up))
-                moved = [self.at_radius(self.legs[k], p, a.radius) if k in grp else p
+                moved = [target(self.legs[k], p, radius) if k in grp else p
                          for k, p in enumerate(up)]
                 out.append(("rapprocher", "deplacer trepied", moved))
                 cur = [(x, y, z0) if k in grp else (x, y, z) for k, (x, y, z) in enumerate(moved)]
@@ -438,7 +449,7 @@ class TorqueTest:
                     w.writerow(["date", "resultat", "rayon_mm", "z_debout_mm", "pas_mm", "vitesse",
                                 "hauteur_levee_mm", "charge_max_pct", "id_charge_max", "temp_max",
                                 "tension_min_V", "duree_s", "fichier"])
-                w.writerow([self.tag, self.result, self.a.radius or "", self.a.stand_z, self.a.step,
+                w.writerow([self.tag, self.result, self.a.radius or (175.0 if self.a.home else ""), self.a.stand_z, self.a.step,
                             self.a.speed, round(self.max_lift, 1), round(top[1]), top[0],
                             max(temps) if temps else "", min(volts) if volts else "",
                             round(time.time() - self.t0), os.path.basename(base)])
@@ -454,6 +465,9 @@ def main():
     p.add_argument("--yes", action="store_true", help="pas de confirmation avant de bouger")
     p.add_argument("--radius", type=float, default=None,
                    help="distance bout de patte - axe de hanche pendant le lever (mm) ; defaut : inchangee")
+    p.add_argument("--home", action="store_true",
+                   help="avant le lever, met chaque patte dans l'axe de son montage (coxa 0 deg) "
+                        "a --radius mm (175 par defaut), par trepieds")
     p.add_argument("--stand-z", type=float, default=-90, help="hauteur du bout de patte debout (mm, <0)")
     p.add_argument("--start-z", type=float, default=-10,
                    help="hauteur de depart commune des bouts de patte, corps pose (mm) ; "

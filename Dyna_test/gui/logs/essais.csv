@@ -2,3 +2,9 @@ date;resultat;rayon_mm;z_debout_mm;pas_mm;vitesse;hauteur_levee_mm;charge_max_pc
 20261125_111436;debout;170.0;-90.0;4;80;80.1;92;13;38;9.8;28;test_torque_20261125_111436
 20261125_114429;debout;170.0;-90.0;4;80;80.0;90;13;34;9.7;49;test_torque_20261125_114429
 20261125_114521;debout;170.0;-90.0;4;80;80.0;98;13;37;9.7;49;test_torque_20261125_114521
+20261125_152653;arret : ID 6 ne repond plus;;-90;4;80;0.0;35;16;;;1;test_torque_20261125_152653
+20261125_152908;debout;;-90;4;80;80.0;97;1;37;10.7;19;test_torque_20261125_152908
+20261125_153127;arret : patte Avant droite, ID 2 : consigne 234 hors butees 244..780 (articulation -81 deg, bout de patte z 5 mm);170.0;-90;4;80;0.0;1;2;;;0;test_torque_20261125_153127
+20261125_153142;debout;175.0;-90;4;80;80.0;86;1;40;10.4;22;test_torque_20261125_153142
+20261125_153300;debout;;-90;4;80;80.0;85;1;44;10.7;23;test_torque_20261125_153300
+20261125_154016;debout;175.0;-90;4;80;80.0;84;1;39;10.8;25;test_torque_20261125_154016

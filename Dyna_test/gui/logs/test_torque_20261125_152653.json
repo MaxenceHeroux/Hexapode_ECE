@@ -1,0 +1,196 @@
+{
+ "date": "20261125_152653",
+ "parametres": {
+  "host": "192.168.137.10",
+  "port": 5555,
+  "dry_run": false,
+  "offline": false,
+  "yes": true,
+  "radius": null,
+  "stand_z": -90,
+  "start_z": -10,
+  "step": 4,
+  "clear": 15,
+  "tol": 6,
+  "settle_max": 8,
+  "hold": 5,
+  "speed": 80,
+  "temp_max": 62,
+  "full": false,
+  "shift": 20
+ },
+ "resultat": "arret : ID 6 ne repond plus",
+ "hauteur_levee_max_mm": 0.0,
+ "pics_charge_pct": {
+  "3": 1,
+  "4": 5,
+  "5": 25,
+  "0": 1,
+  "1": 5,
+  "2": 1,
+  "15": 6,
+  "16": 35,
+  "17": 0,
+  "12": 7,
+  "13": 22,
+  "14": 0,
+  "9": 0,
+  "10": 3,
+  "11": 0,
+  "6": 1,
+  "7": 6,
+  "8": 2
+ },
+ "config_pattes": [
+  {
+   "name": "Avant gauche",
+   "ids": [
+    3,
+    4,
+    5
+   ],
+   "inverted": [
+    false,
+    true,
+    true
+   ],
+   "mount": {
+    "x": 80,
+    "y": 60,
+    "angle": 45
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Avant droite",
+   "ids": [
+    0,
+    1,
+    2
+   ],
+   "inverted": [
+    false,
+    false,
+    false
+   ],
+   "mount": {
+    "x": 80,
+    "y": -60,
+    "angle": -45
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Milieu droite",
+   "ids": [
+    15,
+    16,
+    17
+   ],
+   "inverted": [
+    true,
+    false,
+    false
+   ],
+   "mount": {
+    "x": 0,
+    "y": -80,
+    "angle": -90
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Arriere droite",
+   "ids": [
+    12,
+    13,
+    14
+   ],
+   "inverted": [
+    true,
+    false,
+    false
+   ],
+   "mount": {
+    "x": -80,
+    "y": -60,
+    "angle": -135
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Arriere gauche",
+   "ids": [
+    9,
+    10,
+    11
+   ],
+   "inverted": [
+    false,
+    true,
+    true
+   ],
+   "mount": {
+    "x": -80,
+    "y": 60,
+    "angle": 135
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "Milieu gauche",
+   "ids": [
+    6,
+    7,
+    8
+   ],
+   "inverted": [
+    false,
+    true,
+    true
+   ],
+   "mount": {
+    "x": 0,
+    "y": 80,
+    "angle": 90
+   },
+   "offset_deg": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "geometrie": {
+  "lengths_mm": {
+   "coxa": 50.0,
+   "femur": 75.0,
+   "tibia": 125.0
+  },
+  "tibia_bend_deg": -45.0,
+  "foot_offset_mm": {
+   "along": 0.0,
+   "perp": -20.0
+  }
+ }
+}
