@@ -282,7 +282,9 @@ class TorqueTest:
         """Liste de (phase, label, pose). Pose = 6 bouts de patte (x, y, z) repere corps."""
         a = self.a
         start = self.start
-        z0 = max(z for _, _, z in start)                 # hauteur de depart commune
+        # hauteur de depart commune des bouts de patte : fixe (--start-z), pour ne pas
+        # dependre d'une patte laissee en l'air ; defaut -10 mm (sol vers -37 mm le 25/11)
+        z0 = a.start_z if a.start_z is not None else max(z for _, _, z in start)
         base = [(x, y, z0) for (x, y, _) in start]
         out = []
         if a.radius:
@@ -453,6 +455,9 @@ def main():
     p.add_argument("--radius", type=float, default=None,
                    help="distance bout de patte - axe de hanche pendant le lever (mm) ; defaut : inchangee")
     p.add_argument("--stand-z", type=float, default=-90, help="hauteur du bout de patte debout (mm, <0)")
+    p.add_argument("--start-z", type=float, default=-10,
+                   help="hauteur de depart commune des bouts de patte, corps pose (mm) ; "
+                        "sol mesure vers -37 mm")
     p.add_argument("--step", type=float, default=4, help="pas de descente des bouts de patte (mm)")
     p.add_argument("--clear", type=float, default=15, help="levee des pattes pour les deplacer (mm)")
     p.add_argument("--tol", type=int, default=6, help="ecart toléré position / consigne (unites servo)")
@@ -477,7 +482,8 @@ def main():
         t.result = "interrompu"
         print("\n*** Interrompu (Ctrl+C) : consignes figees, couple garde.")
     finally:
-        print("Fichiers :", t.save() + "_*")
+        if not args.dry_run:                  # les simulations n'ecrivent rien dans logs/
+            print("Fichiers :", t.save() + "_*")
         if t.peak:
             top = sorted(t.peak.items(), key=lambda kv: -kv[1])[:6]
             print("Charges max :", ", ".join(f"ID {i} {v:.0f}%" for i, v in top))

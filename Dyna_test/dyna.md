@@ -184,6 +184,11 @@ python leg_gui.py                 # se connecte à 192.168.137.10:5555
 python leg_gui.py <ip> [port]
 ```
 
+`leg_server` accepte **jusqu'à 4 clients en même temps** : l'interface peut
+rester ouverte pendant `test_torque` (elle affiche le robot en direct). Les
+commandes sont traitées une par une, donc jamais deux accès simultanés au bus.
+Éviter quand même de bouger les curseurs pendant un essai.
+
 `Ctrl+C` sur `leg_server` **coupe le couple** des 3 servos avant de quitter.
 
 **Reconnexion automatique de l'U2D2.** Quand les servos bougent, l'U2D2 peut

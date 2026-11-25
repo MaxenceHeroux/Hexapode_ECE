@@ -246,7 +246,8 @@ python test_torque.py --radius 170 --stand-z -90 --full      # + deplacer le cor
 ```
 
 Options utiles : `--radius` (distance bout de patte / hanche), `--stand-z`
-(hauteur debout), `--step` (mm par pas), `--speed`, `--tol` (unités),
+(hauteur debout), `--start-z` (hauteur de départ commune des bouts de patte, corps posé :
+−10 mm par défaut, le sol est vers −37 mm), `--step` (mm par pas), `--speed`, `--tol` (unités),
 `--settle-max` (s avant échec), `--hold` (s debout), `--temp-max`.
 
 ### 4.2 Séries proposées pour les graphiques
