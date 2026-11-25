@@ -15,6 +15,7 @@
     </General>
     <Tracing>
       <Verbosity>severe</Verbosity>   <!-- pas d'avertissements reseau dans les terminaux -->
+      <OutputFile>stderr</OutputFile>  <!-- sinon un fichier cyclonedds.log dans chaque dossier -->
     </Tracing>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>

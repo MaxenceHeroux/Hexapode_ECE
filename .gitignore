@@ -21,3 +21,4 @@ graphify-out/.graphify_root
 # Python
 __pycache__/
 .pytest_cache/
+cyclonedds.log
