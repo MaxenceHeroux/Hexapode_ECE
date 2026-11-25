@@ -30,13 +30,38 @@ DEFAULT_PORT = 5555
 DEG_PER_UNIT = 300.0 / 1024.0          # AX : 0..1023 <-> 0..300 deg, 512 = milieu
 POLL_PERIOD = 0.12                     # s entre deux lectures d'etat
 SLOPES = [2, 4, 8, 16, 32, 64, 128]    # valeurs de pente conseillees (doc ROBOTIS)
+
+# Bits d'erreur renvoyes par un AX (protocole 1.0) ; la plupart declenchent la mise en
+# securite (couple coupe, limite de couple remise a 0) selon le registre Alarm Shutdown (18).
+ERROR_BITS = {
+    0x01: "tension",
+    0x02: "butee d'angle",
+    0x04: "surchauffe",
+    0x08: "hors plage",
+    0x10: "checksum",
+    0x20: "surcharge",
+    0x40: "instruction",
+}
+
+
+def safety_reason(s):
+    """Texte de la mise en securite d'un servo, ou "" s'il est normal."""
+    bits = [txt for b, txt in ERROR_BITS.items() if s.get("err", 0) & b]
+    if bits:
+        return ", ".join(bits)
+    if s.get("tlimit") == 0:
+        return "limite de couple a 0"
+    return ""
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leg_gui_config.json")
 
 # Configuration par defaut de la patte (dimensions approximatives du modele SolidWorks)
 DEFAULT_CONFIG = {
     "host": DEFAULT_HOST,
     "port": DEFAULT_PORT,
-    "lengths_mm": {"coxa": 50, "femur": 75, "tibia": 125},
+    "lengths_mm": {"coxa": 50, "femur": 75, "tibia": 125},   # tibia = genou -> bout de patte
+    # Courbure du tibia : angle (deg) entre l'axe du servo du genou (direction "droite" du
+    # tibia) et la droite genou -> bout de patte. Le tibia du modele est cintre vers le corps.
+    "tibia_bend_deg": -30,
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
         # offset_deg : angle dessine quand le servo est a 512
@@ -241,6 +266,9 @@ class ServoPanel(ttk.LabelFrame):
         bf.grid(row=r + 6, column=0, columnspan=4, sticky="we", pady=4)
         ttk.Button(bf, text="Appliquer reglages", command=self.apply_settings).pack(side="left")
         ttk.Button(bf, text="Relire", command=self.reload).pack(side="left", padx=4)
+        self.reset_btn = ttk.Button(bf, text="Reset securite", command=self.reset_safety)
+        self.reset_btn.pack(side="left", padx=4)
+        self.reset_btn.state(["disabled"])
 
         ttk.Separator(self).grid(row=r + 7, column=0, columnspan=4, sticky="we", pady=4)
         entry("Butee CW", "cw_limit", r + 8, 0)
@@ -285,6 +313,9 @@ class ServoPanel(ttk.LabelFrame):
     def reload(self):
         self.loaded = False
 
+    def reset_safety(self):
+        self.app.reset_safety(self.id)
+
     # ----- mise a jour depuis l'etat
     def update_state(self, s):
         if not s or not s.get("ok"):
@@ -297,10 +328,14 @@ class ServoPanel(ttk.LabelFrame):
                f"charge {load:+5.0f} %  {s['temp']:2d} degC  {s['volt'] / 10:.1f} V"
                f"{'  en mouvement' if s['moving'] else ''}")
         color = "black"
-        if s["temp"] >= 65 or abs(load) > 80 or s.get("err"):
+        if s["temp"] >= 65 or abs(load) > 80:
             color = "red"
-        self.readout.config(text=txt + (f"\nerreur servo 0x{s['err']:02X}" if s.get("err") else ""),
-                            foreground=color)
+        safety = safety_reason(s)
+        if safety:
+            color = "red"
+            txt += "\nSECURITE : " + safety + " -> Reset"
+        self.readout.config(text=txt, foreground=color)
+        self.reset_btn.state(["!disabled"] if safety else ["disabled"])
         self.torque.set(s["torque"])
         lo, hi = sorted((raw_to_deg(s["cw_limit"], inv), raw_to_deg(s["ccw_limit"], inv)))
         self.limit_lbl.config(text=f"butees actuelles : {s['cw_limit']} / {s['ccw_limit']}"
@@ -349,6 +384,8 @@ class LegApp(tk.Tk):
         self.conn_lbl.pack(side="left", padx=6)
         tk.Button(top, text="ARRET COUPLE", bg="#c62828", fg="white", font=("Segoe UI", 10, "bold"),
                   command=self.estop).pack(side="right")
+        tk.Button(top, text="RESET SECURITE (3)", bg="#ef6c00", fg="white", font=("Segoe UI", 10, "bold"),
+                  command=lambda: self.reset_safety("ALL")).pack(side="right", padx=4)
         ttk.Button(top, text="Couple ON (3)", command=lambda: self.torque_all(1)).pack(side="right", padx=4)
         ttk.Button(top, text="Scanner", command=lambda: self.client.send("SCAN")).pack(side="right")
 
@@ -384,8 +421,13 @@ class LegApp(tk.Tk):
             v = tk.StringVar(value=str(j["offset_deg"]))
             ttk.Entry(geo, textvariable=v, width=5).grid(row=1, column=2 * c + 1, padx=(2, 6))
             self.off_vars.append(v)
+        ttk.Label(geo, text="courbure tibia (deg)").grid(row=2, column=0, columnspan=3, sticky="e")
+        self.bend_var = tk.StringVar(value=str(self.cfg["tibia_bend_deg"]))
+        ttk.Entry(geo, textvariable=self.bend_var, width=5).grid(row=2, column=3, padx=(2, 6), sticky="w")
+        ttk.Label(geo, text="axe genou -> bout de patte", foreground="gray").grid(
+            row=2, column=4, columnspan=2, sticky="w")
         ttk.Button(geo, text="Appliquer / sauver", command=self.on_geometry_change).grid(
-            row=2, column=0, columnspan=6, sticky="w", pady=(4, 0))
+            row=3, column=0, columnspan=6, sticky="w", pady=(4, 0))
 
         # --- servos
         servos = ttk.Frame(mid)
@@ -452,6 +494,22 @@ class LegApp(tk.Tk):
         self.client.send("SCAN")
         self.status("Connecte")
 
+    def reset_safety(self, who):
+        """Sort les servos du mode securite (cf. RESET dans leg_server)."""
+        self.stop_gait()
+        self.client.send(f"RESET {who}")
+        self.status(f"Reset securite envoye ({who}) : consigne = position actuelle, couple ON")
+
+        def resync():
+            # curseurs et reglages realignes sur l'etat reel apres le reset
+            for i, p in enumerate(self.panels):
+                if who == "ALL" or p.id == who:
+                    s = self.servo_state(i)
+                    if s and s.get("ok"):
+                        p.target.set(round(raw_to_deg(s["pos"], p.inv.get())))
+                    p.loaded = False
+        self.after(500, resync)
+
     def estop(self):
         self.stop_gait()
         self.client.send("ESTOP")
@@ -498,6 +556,7 @@ class LegApp(tk.Tk):
         try:
             for k, v in self.len_vars.items():
                 self.cfg["lengths_mm"][k] = float(v.get())
+            self.cfg["tibia_bend_deg"] = float(self.bend_var.get())
             for j, v, p in zip(self.cfg["joints"], self.off_vars, self.panels):
                 j["offset_deg"] = float(v.get())
                 j["inverted"] = bool(p.inv.get())
@@ -568,12 +627,13 @@ class LegApp(tk.Tk):
         cv.create_text(w - 6, h - 10, text=f"echelle : {reach:.0f} mm", anchor="e", fill="#999")
 
         def top(angles, style):
-            c, f, t = (math.radians(a) for a in angles)
-            horiz = lc + lf * math.cos(f) + lt * math.cos(f + t)
-            pts = [(ox, oy)]
-            for d in (lc, lc + lf * math.cos(f), horiz):
-                pts.append((ox + d * sc * math.cos(c), oy - d * sc * math.sin(c)))
-            self._poly(cv, pts, style)
+            g = self.leg_geometry(angles)
+            c = math.radians(angles[0])
+
+            def to_xy(r):
+                return ox + r * sc * math.cos(c), oy - r * sc * math.sin(c)
+            pts = [to_xy(r) for r in (0, lc, g["knee"][0], g["foot"][0])]
+            self._poly(cv, pts, style, ctrl=to_xy(g["ctrl"][0]))
 
         # --- vue de cote
         sv = self.side_cv
@@ -585,29 +645,53 @@ class LegApp(tk.Tk):
         sv.create_text(w2 - 6, sy + (lt * 0.85) * sc2 - 8, text="sol (indicatif)", anchor="e", fill="#aaa")
 
         def side(angles, style):
-            _, f, t = (math.radians(a) for a in angles)
-            p0 = (sx, sy)
-            p1 = (sx + lc * sc2, sy)
-            p2 = (p1[0] + lf * sc2 * math.cos(f), p1[1] - lf * sc2 * math.sin(f))
-            p3 = (p2[0] + lt * sc2 * math.cos(f + t), p2[1] - lt * sc2 * math.sin(f + t))
-            self._poly(sv, [p0, p1, p2, p3], style)
+            g = self.leg_geometry(angles)
+
+            def to_xy(rz):
+                return sx + rz[0] * sc2, sy - rz[1] * sc2
+            pts = [(sx, sy), to_xy((lc, 0)), to_xy(g["knee"]), to_xy(g["foot"])]
+            self._poly(sv, pts, style, ctrl=to_xy(g["ctrl"]))
+            if style == "real" or not real:
+                r, z = g["foot"]
+                sv.create_text(6, 10, anchor="w", fill="#333",
+                               text=f"bout de patte : {r:.0f} mm de l'axe coxa, "
+                                    f"z = {z:+.0f} mm" + ("" if style == "real" else " (consigne)"))
 
         tgt = self.joint_angles("target")
+        real = self.joint_angles("pos")
         top(tgt, "ghost")
         side(tgt, "ghost")
-        real = self.joint_angles("pos")
         if real:
             top(real, "real")
             side(real, "real")
 
-    def _poly(self, cv, pts, style):
+    def leg_geometry(self, angles):
+        """Positions dans le plan de la patte (r = distance a l'axe de la coxa, z = hauteur,
+        en mm) du genou, du bout de patte et du point de controle de la courbe du tibia.
+        Le tibia est cintre : le bout de patte est a tibia_bend_deg de l'axe du genou."""
+        L = self.cfg["lengths_mm"]
+        lc, lf, lt = L["coxa"], L["femur"], L["tibia"]
+        _, f, t = (math.radians(a) for a in angles)
+        axis = f + t                                          # axe du servo du genou
+        chord = axis + math.radians(self.cfg.get("tibia_bend_deg", 0))
+        knee = (lc + lf * math.cos(f), lf * math.sin(f))
+        foot = (knee[0] + lt * math.cos(chord), knee[1] + lt * math.sin(chord))
+        # point de controle : depart de la courbe tangent a l'axe du genou
+        ctrl = (knee[0] + 0.55 * lt * math.cos(axis), knee[1] + 0.55 * lt * math.sin(axis))
+        return {"knee": knee, "foot": foot, "ctrl": ctrl}
+
+    def _poly(self, cv, pts, style, ctrl=None):
+        """Dessine la patte ; le dernier segment (tibia) est courbe via ctrl s'il est donne."""
         colors = ["#1565c0", "#2e7d32", "#ef6c00"]
         for k in range(len(pts) - 1):
             (x0, y0), (x1, y1) = pts[k], pts[k + 1]
+            coords = (x0, y0, x1, y1)
+            if ctrl and k == len(pts) - 2:
+                coords = (x0, y0, ctrl[0], ctrl[1], x1, y1)
             if style == "ghost":
-                cv.create_line(x0, y0, x1, y1, fill="#9e9e9e", width=2, dash=(4, 3))
+                cv.create_line(*coords, fill="#9e9e9e", width=2, dash=(4, 3), smooth=True)
             else:
-                cv.create_line(x0, y0, x1, y1, fill=colors[k % 3], width=6, capstyle="round")
+                cv.create_line(*coords, fill=colors[k % 3], width=6, capstyle="round", smooth=True)
         if style == "real":
             for k, (x, y) in enumerate(pts[1:-1]):
                 cv.create_oval(x - 6, y - 6, x + 6, y + 6, fill="white", outline="#333", width=2)

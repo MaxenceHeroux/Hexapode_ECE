@@ -22,6 +22,9 @@
 //   WRITE id addr len val        ecriture brute (len = 1 ou 2)
 //   READ id addr len             lecture brute  (len = 1 ou 2)
 //   ESTOP                        couple OFF sur les 3 servos
+//   RESET [id|ALL]               sortie du mode securite (surcharge, surchauffe...) :
+//                                consigne = position actuelle, limite de couple (34)
+//                                = couple max (14), couple ON. Sans id : les 3 servos.
 //
 // Arret (Ctrl+C, SIGTERM) : le couple des 3 servos est coupe avant de quitter.
 //
@@ -146,6 +149,31 @@ static std::string ok_or(const std::string &e, const std::string &ok = "OK") {
   return e.empty() ? ok : "ERR " + e;
 }
 
+// Sortie du mode securite d'un AX. Apres une alarme (surcharge, surchauffe...), le servo
+// coupe son couple et met sa limite de couple (reg. 34) a 0 : il reste mou meme si on
+// reactive le couple. Les AX n'ont pas d'instruction "reboot" : on remet les registres.
+// Les ecritures ignorent l'octet d'erreur du servo (il reste leve pendant l'alarme),
+// seules les erreurs de communication comptent.
+static std::string reset_servo(int id) {
+  uint8_t err = 0;
+  uint16_t pos = 0, maxt = 0;
+  int res = pkt->read2ByteTxRx(port, id, ADDR_PRESENT_POSITION, &pos, &err);
+  if (res != COMM_SUCCESS) return "ID " + std::to_string(id) + " : " + pkt->getTxRxResult(res);
+  res = pkt->read2ByteTxRx(port, id, ADDR_MAX_TORQUE, &maxt, &err);
+  if (res != COMM_SUCCESS) return "ID " + std::to_string(id) + " : " + pkt->getTxRxResult(res);
+  if (maxt == 0) maxt = 1023;
+  // 1) consigne = position actuelle (pas de saut au rearmement)
+  res = pkt->write2ByteTxRx(port, id, ADDR_GOAL_POSITION, pos, &err);
+  // 2) limite de couple remise au couple max
+  if (res == COMM_SUCCESS) res = pkt->write2ByteTxRx(port, id, ADDR_TORQUE_LIMIT, maxt, &err);
+  // 3) couple ON
+  if (res == COMM_SUCCESS) res = pkt->write1ByteTxRx(port, id, ADDR_TORQUE_ENABLE, 1, &err);
+  if (res != COMM_SUCCESS) return "ID " + std::to_string(id) + " : " + pkt->getTxRxResult(res);
+  printf("RESET ID %d : consigne %d, limite de couple %d, couple ON\n", id, pos, maxt);
+  fflush(stdout);
+  return "";
+}
+
 static void torque_all(int on) {
   for (int id : ids) w1(id, ADDR_TORQUE_ENABLE, on);
 }
@@ -240,6 +268,24 @@ static std::string handle(const std::string &line) {
       r += " " + std::to_string(id) + ":" + (res == COMM_SUCCESS ? "1" : "0");
     }
     return r;
+  }
+
+  if (cmd == "RESET") {
+    std::string who;
+    in >> who;
+    std::vector<int> targets;
+    if (who.empty() || who == "ALL" || who == "all") targets = ids;
+    else {
+      int id = atoi(who.c_str());
+      if (!is_known(id)) return "ERR id " + who + " non gere par ce serveur";
+      targets.push_back(id);
+    }
+    std::string errs;
+    for (int id : targets) {
+      std::string e = reset_servo(id);
+      if (!e.empty()) errs += (errs.empty() ? "" : " ; ") + e;
+    }
+    return errs.empty() ? "OK securite reinitialisee" : "ERR " + errs;
   }
 
   if (cmd == "GOALS") {
