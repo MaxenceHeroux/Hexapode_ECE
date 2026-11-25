@@ -4,7 +4,7 @@ Ce document rassemble le calcul du couple demandé aux servos Dynamixel pour
 porter et lever l'hexapode, les essais faits le **25/11/2026** et leurs
 résultats, et la façon de refaire les essais et les graphiques.
 
-Programme d'essai : `Dyna_test/gui/test_torque.py` (README principal, §15).
+Programme d'essai : `Dyna_test/gui/test_torque.py` ([dyna.md §3](dyna.md)).
 Mesures brutes : `Dyna_test/gui/logs/` (versionnées, voir §5).
 
 ---
@@ -94,7 +94,7 @@ Pour une masse de 1,5 kg, ces valeurs sont à multiplier par 0,75.
 ### 3.1 Essai 1 : réglages de compliance, une patte (12/13/14)
 
 Fémur abaissé de 50 unités (≈ 15°) sous charge, 6 combinaisons de pente et de
-punch, vitesse 150 (README §14.5) :
+punch, vitesse 150 ([dyna.md §2.4](dyna.md)) :
 
 | Pente | Punch | Atteint | Écart 13 / 14 (unités) | Oscillation | Maintien fémur 13 |
 |---|---|---|---|---|---|

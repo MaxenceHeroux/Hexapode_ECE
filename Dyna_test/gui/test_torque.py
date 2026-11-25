@@ -7,7 +7,7 @@ Deroule (robot pose au sol, corps sur le sol) :
   0. VERIFS   : 18 servos presents, aucun en alarme, temperature < --temp-max ;
                 TOUTES les poses du plan sont calculees et verifiees (atteignables, dans
                 les butees) avant le moindre mouvement
-  1. REGLAGES : femurs / tibias pente 8, punch 100 (README 14.5), vitesse --speed ;
+  1. REGLAGES : femurs / tibias pente 8, punch 100 (dyna.md 2.4), vitesse --speed ;
                 consigne = position actuelle puis couple ON (aucun saut)
   2. RAPPROCHER (si --radius) : par trepieds, chaque patte se leve de --clear mm, va a
                 --radius mm de l'axe de sa hanche et se repose a la hauteur de depart.

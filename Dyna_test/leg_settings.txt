@@ -8,7 +8,7 @@
 #   pente  8 / punch 100        : atteinte en 0,20 s, ecart 1 unite, aucune oscillation,
 #                                 charge de maintien 22 %  -> retenu
 #   (pente 4 / punch 64 : ecart equivalent mais oscillation et 31 % de charge)
-# Detail dans le README, section 14.5.
+# Detail dans dyna.md, section 2.4.
 
 SPEED 13 150
 TLIMIT 13 1023
