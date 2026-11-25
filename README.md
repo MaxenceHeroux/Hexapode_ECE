@@ -85,20 +85,22 @@ Host hexapode
     HostKeyAlias hexapode
     ConnectTimeout 5
 
-# Secours : IPv6 lien local (marche sans partage ; %%30 = numero de l'adaptateur USB)
+# Secours : IPv6 lien local (marche sans partage ; %%9 = numero de l'adaptateur USB)
 Host hexapode-ipv6
-    HostName fe80::ba1c:8ef1:258:b472%%30
+    HostName fe80::ba1c:8ef1:258:b472%%9
     User hexa-pi
     IdentityFile ~/.ssh/id_ed25519_hexapode
     IdentitiesOnly yes
     HostKeyAlias hexapode
+    ConnectTimeout 5
 ```
 
 Remarques :
 - Dans ce fichier, `%` doit s'écrire `%%`.
-- `%30` est le numéro (ifIndex) de l'adaptateur USB Ethernet sous Windows. Il
-  peut changer si l'adaptateur est branché sur un autre port USB. Pour le
-  retrouver :
+- `%9` est le numéro (ifIndex) de l'adaptateur USB Ethernet sous Windows
+  (c'était `%30` le 23/11/2026, il est passé à `%9` après un changement de
+  port USB). Il peut changer si l'adaptateur est branché sur un autre port
+  USB. Pour le retrouver :
   ```powershell
   Get-NetAdapter | Where-Object InterfaceDescription -like '*Realtek USB*' | Select-Object Name, ifIndex
   ```
@@ -391,7 +393,7 @@ export ROS_LOCALHOST_ONLY=0
 | Symptôme | Cause probable | Solution |
 |---|---|---|
 | `ssh hexapode` → *Connection timed out* | partage de connexion Windows coupé | `ssh hexapode-ipv6` puis réactiver le partage (§4.1) |
-| `ssh hexapode-ipv6` ne marche pas | adaptateur USB sur un autre port (`%30` a changé) | retrouver l'ifIndex (§3.2) et corriger `~/.ssh/config` |
+| `ssh hexapode-ipv6` ne marche pas | adaptateur USB sur un autre port (`%9` a changé) | retrouver l'ifIndex (§3.2) et corriger `~/.ssh/config` |
 | *Host key verification failed* | Pi réinstallée (nouvelle empreinte) | `ssh-keygen -R hexapode` puis se reconnecter |
 | *Permission denied (publickey,password)* | clé absente de la Pi | réinstaller la clé (§3.3) |
 | VS Code bloqué à « Setting up SSH host » | question de plateforme cachée / pas de réseau | vérifier `remote.SSH.remotePlatform`, tester `ssh hexapode` |
