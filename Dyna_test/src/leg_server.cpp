@@ -1,17 +1,23 @@
-// leg_server.cpp - pilotage d'une patte (3 Dynamixel AX-12A / AX-18F, protocole 1.0)
+// leg_server.cpp - pilotage des Dynamixel de l'hexapode (AX-12A / AX-18F, protocole 1.0)
 //
 // Pilote les servos par leurs registres et recoit des ordres texte sur TCP (port 5555),
-// une commande par ligne. Utilise par l'interface graphique gui/leg_gui.py.
+// une commande par ligne. Utilise par gui/leg_gui.py et gui/test_torque.py.
 //
-//   ./bin/leg_server                 # IDs 12 13 14, port 5555, /dev/u2d2
-//   ./bin/leg_server 12 13 14 5555   # IDs et port explicites
+//   ./bin/leg_server                     # IDs 0..17 (les 6 pattes), port 5555, /dev/u2d2
+//   ./bin/leg_server 12 13 14            # seulement ces IDs
+//   ./bin/leg_server --port 5556 0 1 2   # autre port
+//
+// Les servos qui ne repondent pas sont marques absents : ils ne sont plus lus a chaque
+// STATE (sinon chaque absent coute ~35 ms), un seul absent est re-teste par STATE.
 //
 // Commandes (reponse "OK ..." ou "ERR ...") :
 //   PING                         -> OK pong
+//   IDS id id ...                remplace la liste des servos geres (puis SCAN)
 //   SCAN                         -> OK 12:1 13:1 14:0  (1 = le servo repond)
-//   STATE                        -> OK {json}  etat + reglages des 3 servos
+//   STATE                        -> OK {json}  etat + reglages de tous les servos
 //   GOAL id pos                  position cible 0..1023            (reg. 30)
-//   GOALS p1 p2 p3               positions cibles des 3 servos (sync write)
+//   GOALS p1 p2 ...              positions cibles de TOUS les servos, dans l'ordre (sync write)
+//   GOALSID id pos id pos ...    positions cibles des servos cites (sync write)
 //   SPEED id v                   vitesse de deplacement 0..1023    (reg. 32, 0 = max)
 //   TORQUE id 0|1                couple ON/OFF                     (reg. 24)
 //   TLIMIT id v                  limite de couple 0..1023          (reg. 34, RAM)
@@ -21,12 +27,12 @@
 //   LIMITS id cw ccw             butees d'angle 0..1023            (reg. 6/8, EEPROM)
 //   WRITE id addr len val        ecriture brute (len = 1 ou 2)
 //   READ id addr len             lecture brute  (len = 1 ou 2)
-//   ESTOP                        couple OFF sur les 3 servos
+//   ESTOP                        couple OFF sur tous les servos
 //   RESET [id|ALL]               sortie du mode securite (surcharge, surchauffe...) :
 //                                consigne = position actuelle, limite de couple (34)
-//                                = couple max (14), couple ON. Sans id : les 3 servos.
+//                                = couple max (14), couple ON. Sans id : tous les servos.
 //
-// Arret (Ctrl+C, SIGTERM) : le couple des 3 servos est coupe avant de quitter.
+// Arret (Ctrl+C, SIGTERM) : le couple de tous les servos est coupe avant de quitter.
 //
 // Reglages au demarrage : les commandes du fichier Dyna_test/leg_settings.txt (a cote du
 // dossier bin/) sont executees au lancement (registres RAM des AX, perdus hors tension).
@@ -46,6 +52,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -85,6 +93,8 @@ static void on_signal(int) { g_running = 0; }
 static dynamixel::PortHandler   *port = nullptr;
 static dynamixel::PacketHandler *pkt  = nullptr;
 static std::vector<int> ids;
+static std::map<int, bool> present;     // le servo a-t-il repondu au dernier ping / lecture ?
+static size_t g_probe = 0;              // tourniquet de re-test des absents
 
 // ----------------------------------------------------------------- port / reconnexion
 #define FAIL_STREAK_REOPEN 8          // STATE consecutifs sans aucune reponse -> on rouvre le port
@@ -177,8 +187,21 @@ static std::string reset_servo(int id) {
   return "";
 }
 
+static bool ping_id(int id) {
+  uint16_t model = 0; uint8_t err = 0;
+  bool ok = pkt->ping(port, id, &model, &err) == COMM_SUCCESS;
+  present[id] = ok;
+  return ok;
+}
+
+static std::vector<int> present_ids() {
+  std::vector<int> v;
+  for (int id : ids) if (present[id]) v.push_back(id);
+  return v;
+}
+
 static void torque_all(int on) {
-  for (int id : ids) w1(id, ADDR_TORQUE_ENABLE, on);
+  for (int id : present_ids()) w1(id, ADDR_TORQUE_ENABLE, on);
 }
 
 // Etat complet des servos en JSON (une ligne)
@@ -191,14 +214,24 @@ static std::string state_json() {
     o << ",\"port_error\":\"" << perr << "\",\"servos\":[]}";
     return o.str();
   }
+  // re-teste un seul servo absent par STATE (tourniquet)
+  std::vector<int> absent;
+  for (int id : ids) if (!present[id]) absent.push_back(id);
+  if (!absent.empty()) ping_id(absent[g_probe++ % absent.size()]);
+
   o << ",\"servos\":[";
-  int failed = 0;
+  int failed = 0, polled = 0;
   for (size_t k = 0; k < ids.size(); k++) {
     int id = ids[k];
+    if (k) o << ",";
+    if (!present[id]) {
+      o << "{\"id\":" << id << ",\"ok\":false,\"msg\":\"absent\"}";
+      continue;
+    }
+    polled++;
     uint8_t t[TABLE_SIZE] = {0};
     uint8_t err = 0;
     int res = pkt->readTxRx(port, id, 0, TABLE_SIZE, t, &err);
-    if (k) o << ",";
     if (res != COMM_SUCCESS) {
       failed++;
       o << "{\"id\":" << id << ",\"ok\":false,\"msg\":\"" << pkt->getTxRxResult(res) << "\"}";
@@ -230,24 +263,35 @@ static std::string state_json() {
   o << "]}";
   // Aucun servo ne repond plusieurs fois de suite : on rouvre le port par precaution
   // (cas d'un U2D2 reconnecte sous le meme nom ttyUSBx).
-  if (failed == (int)ids.size()) {
-    if (++g_fail_streak >= FAIL_STREAK_REOPEN) ensure_port(true);
+  if (polled > 0 && failed == polled) {
+    if (++g_fail_streak >= FAIL_STREAK_REOPEN) {
+      ensure_port(true);
+      for (int id : ids) ping_id(id);          // re-scan complet apres reouverture
+    }
   } else {
     g_fail_streak = 0;
   }
   return o.str();
 }
 
-static std::string goals(const std::vector<int> &p) {
-  if (p.size() != ids.size()) return "ERR il faut " + std::to_string(ids.size()) + " positions";
+// Sync write des consignes : paires (id, position)
+static std::string sync_goals(const std::vector<std::pair<int, int>> &g) {
+  if (g.empty()) return "ERR aucune consigne";
   dynamixel::GroupSyncWrite sw(port, pkt, ADDR_GOAL_POSITION, 2);
-  for (size_t k = 0; k < ids.size(); k++) {
-    int v = clampi(p[k], 0, 1023);
+  for (auto &kv : g) {
+    if (!is_known(kv.first)) return "ERR id " + std::to_string(kv.first) + " non gere par ce serveur";
+    int v = clampi(kv.second, 0, 1023);
     uint8_t b[2] = {DXL_LOBYTE(v), DXL_HIBYTE(v)};
-    sw.addParam(ids[k], b);
+    sw.addParam(kv.first, b);
   }
   int res = sw.txPacket();
   return res == COMM_SUCCESS ? "OK" : "ERR " + std::string(pkt->getTxRxResult(res));
+}
+
+static std::string scan() {
+  std::string r = "OK";
+  for (int id : ids) r += " " + std::to_string(id) + ":" + (ping_id(id) ? "1" : "0");
+  return r;
 }
 
 // Traite une ligne de commande, renvoie la reponse (sans \n)
@@ -263,21 +307,25 @@ static std::string handle(const std::string &line) {
   { std::string e = ensure_port(); if (!e.empty()) return "ERR " + e; }
   if (cmd == "ESTOP") { torque_all(0); return "OK couple coupe"; }
 
-  if (cmd == "SCAN") {
-    std::string r = "OK";
-    for (int id : ids) {
-      uint16_t model = 0; uint8_t err = 0;
-      int res = pkt->ping(port, id, &model, &err);
-      r += " " + std::to_string(id) + ":" + (res == COMM_SUCCESS ? "1" : "0");
+  if (cmd == "SCAN") return scan();
+
+  if (cmd == "IDS") {
+    std::vector<int> nv; std::set<int> seen; int v;
+    while (in >> v) {
+      if (v < 0 || v > 252) return "ERR id " + std::to_string(v) + " hors 0..252";
+      if (seen.insert(v).second) nv.push_back(v);
     }
-    return r;
+    if (nv.empty() || nv.size() > 40) return "ERR il faut 1 a 40 IDs";
+    ids = nv;
+    present.clear();
+    return scan();
   }
 
   if (cmd == "RESET") {
     std::string who;
     in >> who;
     std::vector<int> targets;
-    if (who.empty() || who == "ALL" || who == "all") targets = ids;
+    if (who.empty() || who == "ALL" || who == "all") targets = present_ids();
     else {
       int id = atoi(who.c_str());
       if (!is_known(id)) return "ERR id " + who + " non gere par ce serveur";
@@ -291,10 +339,19 @@ static std::string handle(const std::string &line) {
     return errs.empty() ? "OK securite reinitialisee" : "ERR " + errs;
   }
 
-  if (cmd == "GOALS") {
+  if (cmd == "GOALS") {                 // toutes les consignes, dans l'ordre de la liste
     std::vector<int> p; int v;
     while (in >> v) p.push_back(v);
-    return goals(p);
+    if (p.size() != ids.size()) return "ERR il faut " + std::to_string(ids.size()) + " positions";
+    std::vector<std::pair<int, int>> g;
+    for (size_t k = 0; k < ids.size(); k++) g.push_back({ids[k], p[k]});
+    return sync_goals(g);
+  }
+
+  if (cmd == "GOALSID") {               // paires id position
+    std::vector<std::pair<int, int>> g; int a, b;
+    while (in >> a >> b) g.push_back({a, b});
+    return sync_goals(g);
   }
 
   int id;
@@ -371,12 +428,11 @@ static void apply_settings_file() {
 
 int main(int argc, char **argv) {
   int tcp_port = DEFAULT_PORT;
-  if (argc >= 4) {
-    for (int i = 1; i <= 3; i++) ids.push_back(atoi(argv[i]));
-    if (argc >= 5) tcp_port = atoi(argv[4]);
-  } else {
-    ids = {12, 13, 14};
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "--port") && i + 1 < argc) tcp_port = atoi(argv[++i]);
+    else ids.push_back(atoi(argv[i]));
   }
+  if (ids.empty()) for (int i = 0; i < 18; i++) ids.push_back(i);   // les 6 pattes
 
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);
