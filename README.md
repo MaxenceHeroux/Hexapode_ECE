@@ -770,6 +770,19 @@ alimentation qui tient les pics, masse commune propre, ferrite sur le câble USB
 - **Par servo** : curseur de consigne en degrés, couple ON/OFF, lecture
   (position, charge %, température, tension, en mouvement), réglages, butées.
 - **ARRÊT COUPLE** (rouge) : couple OFF sur les 3 servos, arrête le pas.
+- **RESET SÉCURITÉ** (orange, + un bouton par servo, actif seulement quand le
+  servo est en sécurité) : après une alarme (surcharge, surchauffe, tension…),
+  un AX coupe son couple **et met sa limite de couple (reg. 34) à 0** — il
+  reste mou même si on réactive le couple, et les AX n'ont pas d'instruction
+  « reboot ». Le reset : consigne = position actuelle (pas de saut), limite de
+  couple = couple max (reg. 14), couple ON. La cause est affichée en clair
+  (`SECURITE : surcharge -> Reset`). Testé le 25/11/2026 sur le servo 14 en
+  surcharge (erreur `0x20`, limite de couple 0) : remis en service sans mouvement.
+- **Courbure du tibia** : le tibia du modèle est cintré, le bout de patte
+  n'est pas dans l'axe du servo du genou. Réglage « courbure tibia (deg) » =
+  angle entre l'axe du genou et la droite genou → bout de patte (défaut −30°,
+  à ajuster sur la vraie patte). Le tibia est dessiné courbe et la position du
+  bout de patte est affichée (distance à l'axe de la coxa, hauteur, en mm).
 - **Mouvements** : position neutre (512, avec confirmation), « consigne =
   position actuelle », et **pas en boucle** (lever → avancer en l'air → poser
   → pousser au sol) **autour de la pose de départ**, avec amplitude (%) et durée
@@ -809,6 +822,7 @@ limite de couple 1023, vitesse 0 (max), **butées 0 / 1023 = aucune butée**.
 | `STATE` | `OK {json}` : position, consigne, vitesse, charge, tension, température, couple et tous les réglages des 3 servos (lecture des adresses 0–49 en un paquet) |
 | `GOAL id pos`, `GOALS p12 p13 p14` | consigne(s) 0–1023 (`GOALS` = SyncWrite) |
 | `TORQUE id 0/1`, `ESTOP` | couple d'un servo / couple OFF partout |
+| `RESET [id\|ALL]` | sortie du mode sécurité (consigne = position, limite de couple = couple max, couple ON) |
 | `SPEED`, `TLIMIT`, `PUNCH id v` | vitesse, limite de couple, punch |
 | `MARGIN`, `SLOPE id cw ccw` | compliance |
 | `LIMITS id cw ccw` | butées (EEPROM), refuse cw ≥ ccw |
