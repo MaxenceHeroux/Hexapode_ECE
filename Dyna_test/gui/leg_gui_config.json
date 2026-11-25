@@ -1,0 +1,178 @@
+{
+  "host": "192.168.137.10",
+  "port": 5555,
+  "lengths_mm": {
+    "coxa": 52.0,
+    "femur": 66.06,
+    "tibia": 122.84
+  },
+  "tibia_bend_deg": -45.0,
+  "foot_offset_mm": {
+    "along": 0.0,
+    "perp": -20.0
+  },
+  "show_limits": true,
+  "legs": [
+    {
+      "name": "Avant gauche",
+      "ids": [
+        3,
+        4,
+        5
+      ],
+      "inverted": [
+        true,
+        true,
+        true
+      ],
+      "mount": {
+        "x": 121.9,
+        "y": 60.9,
+        "angle": 45
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "Avant droite",
+      "ids": [
+        0,
+        1,
+        2
+      ],
+      "inverted": [
+        true,
+        false,
+        false
+      ],
+      "mount": {
+        "x": 121.9,
+        "y": -60.9,
+        "angle": -45
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "Milieu droite",
+      "ids": [
+        15,
+        16,
+        17
+      ],
+      "inverted": [
+        false,
+        false,
+        false
+      ],
+      "mount": {
+        "x": 0,
+        "y": -103.5,
+        "angle": -90
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "Arriere droite",
+      "ids": [
+        12,
+        13,
+        14
+      ],
+      "inverted": [
+        false,
+        false,
+        false
+      ],
+      "mount": {
+        "x": -121.9,
+        "y": -60.9,
+        "angle": -135
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "Arriere gauche",
+      "ids": [
+        9,
+        10,
+        11
+      ],
+      "inverted": [
+        false,
+        true,
+        true
+      ],
+      "mount": {
+        "x": -121.9,
+        "y": 60.9,
+        "angle": 135
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "Milieu gauche",
+      "ids": [
+        6,
+        7,
+        8
+      ],
+      "inverted": [
+        false,
+        true,
+        true
+      ],
+      "mount": {
+        "x": 0,
+        "y": 103.5,
+        "angle": 90
+      },
+      "offset_deg": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "selected_leg": 1,
+  "gait": [
+    [
+      -15,
+      25,
+      20
+    ],
+    [
+      15,
+      25,
+      20
+    ],
+    [
+      15,
+      0,
+      0
+    ],
+    [
+      -15,
+      0,
+      0
+    ]
+  ]
+}

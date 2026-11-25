@@ -19,21 +19,17 @@ Documents liés : [dyna.md](dyna.md) §3 (pattes, `leg_server`),
    ssh hexapode "cd ~/Hexapode_ECE/Dyna_test && make && (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
    ```
 
-2. **La calibration des pattes est présente** : `gui/leg_gui_config.json`
-   (IDs, sens, offsets, montage, tibia cintré −45°, décalage du pied −20 mm).
-   Ce fichier est **ignoré par git** (`Dyna_test/.gitignore`) : il faut le
-   copier à la main sur chaque PC. Sans lui, le script prend la configuration
-   par défaut de `hexapod_model.py` (offsets à 0, tibia −30°) et la pose
-   calculée est fausse (bouts de patte vus à z ≈ +40 mm au lieu du sol).
+2. **La calibration des pattes est à jour** : `gui/leg_gui_config.json`
+   (IDs, sens, offsets, montage, longueurs, tibia cintré −45°, décalage du
+   pied −20 mm). **Versionnée dans git** depuis le 25/11/2026 (`git pull`
+   suffit). Sans elle, le script prend la configuration par défaut de
+   `hexapod_model.py` (offsets à 0, tibia −30°) et la pose calculée est fausse.
 
-   Sur le PC Linux en dual boot, la copie se récupère depuis la partition
-   Windows (montée en lecture seule) :
-
-   ```bash
-   udisksctl mount -b /dev/nvme0n1p3 -o ro
-   cp "/media/$USER/8004DF2F04DF26C6/Données/A-Dossier ECE/MAKERS/Hexapode/Dyna_test/gui/leg_gui_config.json" \
-      Dyna_test/gui/leg_gui_config.json
-   ```
+   ⚠️ `leg_gui` réécrit ce fichier à chaque réglage : un `leg_gui` resté ouvert
+   avec une ancienne config en mémoire l'écrase au premier clic. Fermer
+   `leg_gui` avant un `git pull`, et commiter après une recalibration.
+   Après une recalibration, régénérer aussi le modèle ROS :
+   `python3 ros2_ws/src/hexapod_description/scripts/gen_legs_yaml.py --host 192.168.137.10`.
 
 3. **Batterie chargée** (≥ 11 V à vide ; à 9,7 V le couple manque).
 4. **Robot posé au sol, quelqu'un à côté de l'alimentation.**
