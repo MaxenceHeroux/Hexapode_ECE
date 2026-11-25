@@ -8,6 +8,7 @@ Plan d'ensemble : [`../tps_archi.md`](../tps_archi.md).
 ~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh          # simulation (aucun servo ne bouge)
 ~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh dry      # + pont vers le robot, sans envoi (vérification)
 ~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh robot    # + pont : LE ROBOT SE LÈVE PUIS MARCHE (confirmation demandée)
+~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh robot-distance   # pareil SANS CÂBLE : hotspot Wi-Fi (voir ../hotspot.md)
 ```
 
 Lance : environnement ROS (CycloneDDS), URDF, marche (`gait_node`), pont Foxglove **et

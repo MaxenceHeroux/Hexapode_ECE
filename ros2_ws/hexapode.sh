@@ -5,20 +5,51 @@
 #   ./hexapode.sh              # simulation (aucun servo ne bouge)
 #   ./hexapode.sh dry          # + pont vers le robot SANS envoi (verifie servos, butees)
 #   ./hexapode.sh robot        # + pont vers le robot : LE ROBOT SE LEVE PUIS MARCHE
+#   ./hexapode.sh robot-distance  # comme robot, SANS CABLE : allume le hotspot Wi-Fi du PC,
+#                                 # attend la Pi, lance leg_server si besoin (voir hotspot.md)
+#   ./hexapode.sh dry-distance    # idem en verification (aucun envoi)
 #   ./hexapode.sh robot rviz:=true      # arguments supplementaires passes au lancement
 #
 # Ctrl+C arrete tout (sur le robot : gel, couple garde ; ESTOP pour le relacher).
 set -e
 WS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+WIFI=false
 case "${1:-sim}" in
   sim|simulation) ROBOT=false ;;
   dry)            ROBOT=dry ;;
   robot)          ROBOT=true ;;
-  -h|--help)      sed -n '2,10p' "$0"; exit 0 ;;
-  *) echo "mode inconnu : $1 (sim | dry | robot)"; exit 1 ;;
+  dry-distance)   ROBOT=dry;  WIFI=true ;;
+  robot-distance) ROBOT=true; WIFI=true ;;
+  -h|--help)      sed -n '2,13p' "$0"; exit 0 ;;
+  *) echo "mode inconnu : $1 (sim | dry | robot | dry-distance | robot-distance)"; exit 1 ;;
 esac
 shift || true
+
+# Sans cable : hotspot Wi-Fi du PC (connexion NetworkManager hexapode-hotspot, hotspot.md)
+if [ "$WIFI" = true ]; then
+  if ! nmcli -t -f NAME connection show --active | grep -qx hexapode-hotspot; then
+    echo ">> Hotspot Wi-Fi 'Hexapode-ECE' : allumage (le PC quitte le Wi-Fi de l'ecole)."
+    nmcli connection up hexapode-hotspot >/dev/null
+  fi
+  echo -n ">> Attente de la Pi (10.42.0.10) "
+  for i in $(seq 1 60); do
+    ping -c 1 -W 1 10.42.0.10 >/dev/null 2>&1 && break
+    echo -n "."; sleep 1
+  done
+  if ! ping -c 1 -W 1 10.42.0.10 >/dev/null 2>&1; then
+    echo; echo ">> La Pi ne repond pas sur le hotspot (60 s). Voir hotspot.md, section Depannage."
+    exit 1
+  fi
+  echo " ok"
+  if ! nc -z -w 2 10.42.0.10 5555 2>/dev/null; then
+    echo ">> leg_server ne tourne pas sur la Pi : lancement."
+    ssh -o ConnectTimeout=5 hexapode-wifi \
+      "cd ~/Hexapode_ECE/Dyna_test && (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
+    for i in $(seq 1 10); do nc -z -w 1 10.42.0.10 5555 2>/dev/null && break; sleep 1; done
+  fi
+  export HEXAPODE_LINK=wifi
+fi
 
 # Environnement : ROS, CycloneDDS local (~/ros_local) si pas installe par apt, hexapode_env.sh
 set +u
@@ -55,4 +86,9 @@ if [ "$ROBOT" = true ]; then
 fi
 
 echo ">> Liaison PC <-> Pi : $HEXAPODE_IFACE, Pi (leg_server) en $HEXAPODE_PI"
+if [ "$WIFI" = true ]; then
+  trap 'echo; echo ">> Hotspot toujours allume. Retour au Wi-Fi de l ecole : nmcli connection down hexapode-hotspot"' EXIT
+  ros2 launch hexapod_control hexapod.launch.py robot:=$ROBOT teleop:=true app:=true host:=$HEXAPODE_PI "$@"
+  exit $?
+fi
 exec ros2 launch hexapod_control hexapod.launch.py robot:=$ROBOT teleop:=true app:=true host:=$HEXAPODE_PI "$@"

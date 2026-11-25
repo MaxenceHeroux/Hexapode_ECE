@@ -12,7 +12,10 @@ export CYCLONEDDS_URI="file://${_hexa_ws}/src/hexapod_bringup/config/cyclonedds.
 # Interface vers l'autre machine : le cable (192.168.137.x : eth0 sur la Pi, adaptateur USB
 # sur le PC) en priorite, sinon le hotspot Wi-Fi du PC (10.42.0.x, voir hotspot.md).
 _hexa_ips="$(ip -o -4 addr show 2>/dev/null)"
-HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^192\.168\.137\./ {print $2; exit}')"
+# (HEXAPODE_LINK=wifi : hotspot en priorite, utilise par hexapode.sh robot-distance)
+HEXAPODE_IFACE=""
+[ "$HEXAPODE_LINK" = wifi ] && HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^10\.42\.0\./ {print $2; exit}')"
+[ -z "$HEXAPODE_IFACE" ] && HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^192\.168\.137\./ {print $2; exit}')"
 [ -z "$HEXAPODE_IFACE" ] && HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^10\.42\.0\./ {print $2; exit}')"
 # Aucune liaison (cable debranche, hotspot eteint) : ROS en local seulement (simulation)
 export HEXAPODE_IFACE="${HEXAPODE_IFACE:-lo}"

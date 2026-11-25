@@ -34,6 +34,23 @@ Les deux liaisons peuvent coexister : le **câble est prioritaire** quand il est
 
 ## 2. Utilisation
 
+### En une commande
+
+```bash
+~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh robot-distance     # (ou dry-distance pour vérifier)
+```
+
+1. allume le hotspot `hexapode-hotspot` s'il ne l'est pas (le PC quitte le Wi-Fi de l'école) ;
+2. attend que la Pi réponde sur `10.42.0.10` (60 s max) ;
+3. lance `leg_server` sur la Pi s'il ne tourne pas ;
+4. force la liaison Wi-Fi pour ROS (`HEXAPODE_LINK=wifi`), puis lance tout comme
+   `hexapode.sh robot` (marche, pont, Foxglove, Teleop).
+
+À la fin (Ctrl+C), le hotspot **reste allumé** (pour relancer vite) ; pour retrouver
+internet : `nmcli connection down hexapode-hotspot`.
+
+### À la main
+
 ### Allumer le hotspot (PC)
 
 ```bash
