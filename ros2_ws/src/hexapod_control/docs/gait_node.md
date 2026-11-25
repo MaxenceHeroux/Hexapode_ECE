@@ -46,9 +46,11 @@ pendant que B est en l'air, puis l'inverse.
 | **Vol** (en l'air) | il va de son point de décollage au point d'atterrissage (en avant du neutre d'un demi-pas), sur une cloche de hauteur `step_height` |
 
 - Les vitesses et la hauteur suivent des **rampes** (accélération 0,2 m/s², 1 rad/s²,
-  hauteur 3 cm/s) : pas d'à-coup quand on change la consigne ou la hauteur en marchant.
+  hauteur `height_rate` 1 cm/s) : pas d'à-coup quand on change la consigne ou la hauteur en marchant.
 - **Arrêt** : sans `/cmd_vel` depuis `cmd_timeout` (0,5 s), la consigne passe à 0 ; le
-  robot finit son pas, remet les pieds au neutre et s'immobilise.
+  robot freine, repose les pattes qui étaient en l'air et s'arrête là (pas de pas
+  supplémentaire pour revenir au neutre). Il ne fait des pas sur place que pour déplacer
+  ses pieds après un changement de hauteur ou de `stance_radius`.
 - Changer `stance_radius` à l'arrêt : le robot fait quelques pas sur place pour
   déplacer ses pieds.
 - **Hors d'atteinte / hors butées** : les angles de la patte concernée sont figés et un
@@ -64,7 +66,7 @@ pendant que B est en l'air, puis l'inverse.
 
 | Topic | Type | Effet |
 |---|---|---|
-| `/cmd_vel` | `geometry_msgs/Twist` | `linear.x` avancer (+) / reculer, `linear.y` crabe (+ = gauche), `angular.z` tourner (+ = gauche). Limité à `max_linear`, `max_angular` |
+| `/cmd_vel` | `geometry_msgs/Twist` | `linear.x` avancer (+) / reculer, `linear.y` crabe (+ = gauche), `angular.z` tourner (+ = gauche), limités à `max_linear`, `max_angular` ; `linear.z` × `height_gain` = vitesse de montée / descente du corps (touches `t` / `b`) |
 | `/body_height` | `std_msgs/Float64` | hauteur du corps (m), bornée à [`min_height`, `max_height`] |
 
 ## Sorties
@@ -87,25 +89,40 @@ L'odométrie est la consigne intégrée (pas une mesure) : elle dérive si les p
 | Paramètre | Défaut | Rôle | Modifiable en marche |
 |---|---|---|---|
 | `body_height` | 0,12 m | hauteur des axes de hanche au-dessus du sol | oui |
-| `min_height`, `max_height` | 0,05 / 0,13 m | bornes de la hauteur | |
-| `stance_radius` | 0,12 m | distance pied ↔ axe de hanche au neutre | oui |
+| `min_height`, `max_height` | 0,05 / 0,15 m | bornes de la hauteur (en plus de ce que les pattes permettent) | |
+| `stance_radius` | 0,12 m | distance pied ↔ axe de hanche **voulue** au neutre (adaptée à la hauteur) | oui |
 | `step_height` | 0,03 m | levée des pattes en vol | oui |
-| `cycle_time` | 1,0 s | durée d'un cycle (2 pas) ; plus long = pas plus courts et plus lents | oui |
-| `max_linear`, `max_angular` | 0,10 m/s, 0,6 rad/s | vitesses max | |
+| `cycle_time` | 0,8 s | durée d'un cycle (2 pas) à vitesse max ; jusqu'à 2× plus lent à basse vitesse | oui |
+| `step_reach` | 0,045 m | demi-pas max : pas jusqu'à 9 cm ; la consigne est réduite (même direction) si le pas dépasserait. Plus grand = pieds plus écartés (carte de faisabilité) | au démarrage |
+| `max_linear`, `max_angular` | 0,20 m/s, 0,8 rad/s | vitesses max | oui |
 | `cmd_timeout` | 0,5 s | arrêt sans consigne | |
+| `height_gain` | 0,04 | `t` / `b` : vitesse de la hauteur = `linear.z` × 0,04 (≈ 4 mm/s à la vitesse de départ du clavier) | oui |
+| `height_rate` | 0,01 m/s | vitesse max de changement de hauteur (toutes commandes) | oui |
 | `rate` | 50 Hz | fréquence de calcul | |
 | `legs_yaml` | (vide) | autre `legs.yaml` que celui de `hexapod_description` | |
 
-**Couples rayon / hauteur atteignables en marche** (butées des tibias, simulé dans toutes
-les directions) :
+**Hauteur et écart des pieds sont liés** (butées des tibias : pattes serrées = corps
+haut). Au démarrage, le nœud calcule une carte des couples (rayon, hauteur) où la marche
+reste dans les butées (6 pattes, pied neutre ± 2,5 cm au sol et en haut du pas). Ensuite :
 
-| `stance_radius` | `body_height` minimale |
+- `body_height` est bornée à ce que les pattes permettent (50 – 150 mm) ;
+- `stance_radius` est le rayon **voulu** : le rayon appliqué est le plus proche possible
+  à la hauteur demandée (s'écarte quand on descend, se resserre quand on monte) ; le
+  robot fait des pas sur place pour déplacer ses pieds ;
+- pendant le changement, le corps ne monte / descend que si les pieds restent atteignables
+  (il attend les pas), et un pied dont le pas passerait hors butées lève moins la patte.
+
+| Hauteur demandée | Rayon appliqué (voulu 0,12 m) |
 |---|---|
-| 0,10 – 0,115 m | 0,13 m |
-| 0,12 – 0,13 m | 0,12 m |
-| 0,14 m | 0,11 m |
-| 0,16 m | 0,09 m |
-| 0,17 m | 0,07 m |
+| 50 mm | 175 mm |
+| 70 mm | 170 mm |
+| 90 mm | 155 mm |
+| 110 mm | 140 mm |
+| 120 mm | 130 mm |
+| ≥ 130 mm | 120 mm |
+
+**Cadence** : `cycle_time` à vitesse max ; plus lente quand on va moins vite (jusqu'à
+2 × `cycle_time` à mi-vitesse et en dessous) : pas plus courts **et** moins fréquents.
 
 Pattes serrées = bras de levier plus court = moins de couple et moins de glissement
 (essai du 25/11/2026 : 22 % de charge à 0,12 / 0,12 contre 35 % à 0,17 / 0,09).
@@ -116,7 +133,8 @@ Pattes serrées = bras de levier plus court = moins de couple et moins de glisse
 
 ```bash
 # Piloter au clavier (AZERTY : i avancer, , reculer, j/l tourner, Maj+J/L crabe, k stop)
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.08 -p turn:=0.5
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p speed:=0.05 -p turn:=0.3
+# vitesse : q / z = +/-10 % (w/x avance seule, e/c rotation seule) ; plafonnee a max_linear / max_angular
 
 # Une consigne à la main (10 Hz, sinon arrêt au bout de 0,5 s)
 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.08}}"

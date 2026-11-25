@@ -10,3 +10,9 @@ leg_server_bridge:
     max_load: 85.0           # % : au-dela pendant load_time -> gel
     load_time: 0.6           # s
     temp_max: 62             # degC -> gel
+    speed_gain: 1.5          # vitesse servo = vitesse necessaire pour la consigne suivante x gain
+    min_speed: 30
+    stance_slope: 8          # patte au sol (porte le robot) : raide
+    stance_punch: 100
+    swing_slope: 64          # patte en l'air : souple, mouvement doux
+    swing_punch: 32

@@ -4,14 +4,15 @@ gait_node:
   ros__parameters:
     rate: 50.0            # Hz
     body_height: 0.12     # m : axes des hanches au-dessus du sol (plaque du bas a -18.5 mm)
-    min_height: 0.05      # attention : sous body_height mini du rayon choisi (voir stance_radius), les pattes sortent des butees
-    max_height: 0.13
-    stance_radius: 0.12   # m : bout de patte <-> axe de hanche, position neutre (pattes serrees :
-                          #     moins de glissement et de couple). Atteignable en marche (butees des
-                          #     tibias) : 120 mm des 120 mm de haut (100 mm a 130 mm), 140 mm des 110 mm, 160 mm des 90 mm,
-                          #     170 mm des 70 mm
+    min_height: 0.05      # bornes ; la marche limite aussi a ce que les pattes permettent
+    max_height: 0.15
+    stance_radius: 0.12   # m : ecart pied <-> axe de hanche VOULU ; adapte a la hauteur (butees des
+                          #     tibias : 120 mm des 130 mm de haut, 130 a 120, 155 a 90, 175 a 50)
     step_height: 0.03     # m : levee des pattes en vol
-    cycle_time: 1.0       # s : un cycle complet (2 pas de trepied)
-    max_linear: 0.10      # m/s
-    max_angular: 0.6      # rad/s
+    cycle_time: 0.8       # s : un cycle complet (2 pas de trepied) a vitesse max
+    max_linear: 0.20      # m/s
+    max_angular: 0.8      # rad/s
+    step_reach: 0.045     # m : demi-pas max (pas jusqu'a 9 cm) ; plus grand = pieds plus ecartes
     cmd_timeout: 0.5      # s sans /cmd_vel -> arret
+    height_gain: 0.04     # t / b : vitesse de la hauteur = linear.z x 0.04 (clavier 0.10 -> 4 mm/s)
+    height_rate: 0.01     # m/s : vitesse max de changement de hauteur (rampe, tous moyens confondus)

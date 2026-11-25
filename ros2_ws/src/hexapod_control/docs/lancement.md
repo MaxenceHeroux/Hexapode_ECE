@@ -7,6 +7,11 @@ cd ~/Hexapode2026/Hexapode_ECE/ros2_ws
 source install/setup.zsh            # (setup.bash sous bash) ; ROS + hexapode_env.sh déjà dans ~/.zshrc
 ```
 
+**Le plus simple** : `ros2_ws/hexapode.sh` (`sim`, `dry` ou `robot`) lance tout d'un coup —
+environnement, marche, Foxglove (pont + application connectée), fenêtre Teleop, et le pont
+vers le robot selon le mode — après avoir arrêté une éventuelle session oubliée.
+Équivaut à `ros2 launch hexapod_control hexapod.launch.py robot:=<false|dry|true> teleop:=true app:=true`.
+
 | Commande | Ce qui se lance |
 |---|---|
 | `ros2 launch hexapod_control hexapod.launch.py` | **Simulation** : URDF, marche, pont Foxglove |
@@ -25,6 +30,7 @@ source install/setup.zsh            # (setup.bash sous bash) ; ROS + hexapode_en
 | `foxglove` | `true` | `foxglove_bridge` sur le port 8765 (s'il est installé) |
 | `teleop` | `false` | terminal `teleop_twist_keyboard` sur `/cmd_vel` |
 | `host` | `192.168.137.10` | IP du `leg_server` |
+| `app` | `false` | ouvre l'application Foxglove connectée à `ws://localhost:8765` (`~/Applications/foxglove` ou `foxglove-studio`) |
 
 ## Nœuds lancés
 
@@ -54,8 +60,10 @@ source install/setup.zsh            # (setup.bash sous bash) ; ROS + hexapode_en
    | `i` / `,` | avancer / reculer (maintenir la touche) |
    | `j` / `l` | tourner à gauche / à droite |
    | Maj + `J` / `L` | crabe gauche / droite |
+   | `t` / `b` | monter / descendre le corps (tant que la touche est maintenue) |
    | `k` (ou toute autre touche) | stop |
-   | `a` / `z` | vitesse +10 % / −10 % |
+   | `q` / `z` | vitesse +10 % / −10 % (départ 0,10 m/s, max 0,20) |
+   | `w` / `x`, `e` / `c` | vitesse d'avance seule, de rotation seule |
 
 6. Hauteur : `ros2 param set /gait_node body_height 0.12` (voir les couples rayon / hauteur
    dans [gait_node.md](gait_node.md)).

@@ -373,6 +373,8 @@ changer les réglages par défaut.
 | `GOAL id pos` | consigne 0–1023 d'un servo |
 | `GOALS p0 p1 …` | consignes de tous les servos, dans l'ordre de la liste (SyncWrite) |
 | `GOALSID id pos id pos …` | consignes d'un groupe de servos (SyncWrite) |
+| `GOALSPD id pos vitesse …` | consigne **et** vitesse (registres 30–33) d'un groupe de servos, en un SyncWrite : mouvement fluide d'une consigne à la suivante (utilisé par `leg_server_bridge`) |
+| `SYNCW addr len id val …` | SyncWrite brut d'un registre RAM (24–49, 1 ou 2 octets), ex. `SYNCW 28 2 13 2056` = pentes 8/8 du servo 13 |
 | `TORQUE id 0/1`, `ESTOP` | couple d'un servo / couple OFF partout |
 | `RESET [id\|ALL]` | sortie du mode sécurité (consigne = position, limite de couple = couple max, couple ON) |
 | `SPEED`, `TLIMIT`, `PUNCH id v` | vitesse, limite de couple, punch |

@@ -45,8 +45,18 @@ La calibration (`Dyna_test/gui/leg_gui_config.json` → `legs.yaml`) doit être 
    **couple ON** (aucun saut).
 3. **Rampe** : pendant `ramp_time` s, la consigne passe de la position réelle à la pose
    demandée par la marche (toutes les pattes ensemble : le robot se lève).
-4. **Suivi** : chaque `/joint_states` est converti et envoyé (`GOALSID`, 25 Hz).
-   Toutes les 2 s : écart consigne / position, charge max, tension.
+4. **Suivi** : chaque `/joint_states` est converti et envoyé à 25 Hz avec `GOALSPD` :
+   position **et vitesse** de chaque servo, la vitesse étant celle qu'il faut pour arriver
+   pile à la consigne suivante (× `speed_gain`). Le servo glisse d'une consigne à l'autre
+   au lieu de foncer puis s'arrêter : mouvement fluide, et la vitesse demandée au robot est
+   bien suivie. Toutes les 2 s : écart consigne / position, charge max, tension.
+5. **Compliance selon la phase** (`/leg_phases` de `gait_node`) : une patte **au sol** (elle
+   porte le robot) est raide (pente `stance_slope` 8, punch `stance_punch` 100) ; une patte
+   **en l'air** est souple et douce (pente `swing_slope` 64, punch `swing_punch` 32).
+   Changement envoyé en 2 `SYNCW` seulement quand une patte change de phase.
+
+Avec un ancien `leg_server` (sans `GOALSPD` / `SYNCW`), le pont prévient et revient à
+`GOALSID` avec vitesse et compliance fixes.
 
 Conversion (comme `hexapod_model.joint_to_raw`) :
 `raw = 512 + (±(angle − offset)) / (300/1024 °)`, signe `−` si le servo est monté
@@ -89,7 +99,10 @@ Sortir un servo du mode sécurité : `RESET ALL` dans la même connexion
 | `send` | `false` | `true` = envoie aux servos (fixé par `robot:=true` au lancement) |
 | `host`, `port` | `192.168.137.10`, 5555 | `leg_server` |
 | `rate` | 25 Hz | fréquence d'envoi (lecture d'état à `rate` / 5) |
-| `speed` | 100 | vitesse des servos (1..1023) |
+| `speed` | 100 | vitesse des servos au démarrage (et si `leg_server` ancien) |
+| `speed_gain`, `min_speed` | 1,3 ; 20 | vitesse envoyée = vitesse nécessaire × gain, au moins `min_speed` |
+| `stance_slope`, `stance_punch` | 8 ; 100 | compliance d'une patte au sol (raide) |
+| `swing_slope`, `swing_punch` | 64 ; 32 | compliance d'une patte en l'air (souple) |
 | `ramp_time` | 8 s | durée du lever au démarrage |
 | `max_load`, `load_time` | 85 %, 0,6 s | gel en surcharge |
 | `temp_max` | 62 °C | gel en surchauffe |

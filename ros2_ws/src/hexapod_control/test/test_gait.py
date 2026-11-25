@@ -29,8 +29,9 @@ def test_ik_fk_roundtrip(legs):
             assert math.dist(lg.fk(q2), p) < 1e-6
 
 
-def run(legs, cmd, seconds, height=0.09, new_height=None):
-    g = TripodGait(legs, body_height=height)
+def run(legs, cmd, seconds, height=0.12, new_height=None):
+    g = TripodGait(legs, body_height=height, stance_radius=0.12, cycle_time=0.8,
+                   max_linear=0.20, max_angular=0.8)
     g.set_cmd(*cmd)
     dt, worst = 0.02, []
     x = y = yaw = 0.0
@@ -58,7 +59,8 @@ def run(legs, cmd, seconds, height=0.09, new_height=None):
     return g, (x, y, yaw), max(worst) if worst else 0.0
 
 
-@pytest.mark.parametrize("cmd", [(0.10, 0, 0), (-0.10, 0, 0), (0, 0.08, 0), (0, 0, 0.6), (0.07, 0.0, 0.4)])
+@pytest.mark.parametrize("cmd", [(0.10, 0, 0), (-0.10, 0, 0), (0, 0.08, 0), (0, 0, 0.6), (0.07, 0.0, 0.4),
+                                 (0.20, 0, 0), (-0.20, 0, 0), (0, 0.20, 0), (0, 0, 0.8), (0.15, 0.0, 0.6)])
 def test_walk(legs, cmd):
     g, pose, slip = run(legs, cmd, 6.0)
     assert slip < 0.004          # glissement d'un pied en appui < 4 mm par pas de temps (rampes)
@@ -71,14 +73,49 @@ def test_height_change_while_walking(legs):
     assert abs(g.height - 0.12) < 1e-3
 
 
-def test_stops_at_neutral(legs):
+def test_stops_without_extra_steps(legs):
+    """Consigne relachee : le robot repose les pattes en l'air puis s'arrete (au plus un
+    demi-cycle), sans pas supplementaires pour revenir au neutre."""
     g = TripodGait(legs)
     g.set_cmd(0.1, 0, 0)
     for _ in range(150):
         g.step(0.02)
     g.set_cmd(0, 0, 0)
-    for _ in range(300):
+    for k in range(200):
         g.step(0.02)
+        if not g.walking:
+            break
     assert not g.walking
+    assert k * 0.02 <= g.cycle_time * 0.5 + 0.6     # freinage (0,5 s) + fin du demi-pas
     for lg in legs:
-        assert math.dist(g.feet[lg.n][:2], g.neutral(lg)[:2]) < 0.005
+        assert abs(g.feet[lg.n][2] + g.height) < 1e-9          # tous les pieds au sol
+
+
+def _all_ok(g, legs):
+    for lg in legs:
+        q = lg.ik(*g.feet[lg.n])
+        assert q is not None and lg.in_limits(q), \
+            f"patte {lg.n} hors butees a h={g.height:.3f} r={g.radius:.3f}"
+
+
+@pytest.mark.parametrize("cmd", [(0, 0, 0), (0.08, 0, 0), (0, 0, 0.5)])
+def test_height_sweep_adapts_radius(legs, cmd):
+    """Hauteur de haut en bas et retour, avec les pattes serrees voulues (0.12) :
+    le rayon s'adapte et aucune pose ne sort des butees."""
+    g = TripodGait(legs, stance_radius=0.12, body_height=0.12)
+    g.set_cmd(*cmd)
+    for target in (g.h_min, g.h_max, 0.08, 0.12):
+        g.set_height(target)
+        for _ in range(int(8 / 0.02)):
+            g.step(0.02)
+            _all_ok(g, legs)
+        assert abs(g.height - g.height_target) < 1e-3, (target, g.height)
+
+
+def test_cadence_follows_speed(legs):
+    g = TripodGait(legs, cycle_time=1.0, max_linear=0.10)
+    g.set_cmd(0.05, 0, 0)
+    g.vel = (0.10, 0, 0)
+    assert g.cycle_period() == pytest.approx(1.0)
+    g.vel = (0.03, 0, 0)
+    assert g.cycle_period() == pytest.approx(2.0)

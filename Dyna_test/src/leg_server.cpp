@@ -18,6 +18,10 @@
 //   GOAL id pos                  position cible 0..1023            (reg. 30)
 //   GOALS p1 p2 ...              positions cibles de TOUS les servos, dans l'ordre (sync write)
 //   GOALSID id pos id pos ...    positions cibles des servos cites (sync write)
+//   GOALSPD id pos spd ...       position cible + vitesse (reg. 30-33) des servos cites, en un
+//                                seul sync write : mouvement fluide d'une consigne a la suivante
+//   SYNCW addr len id val ...    sync write brut d'un registre RAM (addr 24..49, len 1 ou 2),
+//                                ex. SYNCW 28 2 13 2056 = pentes CW/CCW 8/8 du servo 13
 //   SPEED id v                   vitesse de deplacement 0..1023    (reg. 32, 0 = max)
 //   TORQUE id 0|1                couple ON/OFF                     (reg. 24)
 //   TLIMIT id v                  limite de couple 0..1023          (reg. 34, RAM)
@@ -41,6 +45,7 @@
 // tirent du courant -> nouveau /dev/ttyUSBx), le port /dev/u2d2 est rouvert tout seul.
 
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -290,6 +295,36 @@ static std::string sync_goals(const std::vector<std::pair<int, int>> &g) {
   return res == COMM_SUCCESS ? "OK" : "ERR " + std::string(pkt->getTxRxResult(res));
 }
 
+// Sync write : position cible + vitesse de deplacement (registres 30..33)
+static std::string sync_goal_speed(const std::vector<std::array<int, 3>> &g) {
+  if (g.empty()) return "ERR aucune consigne";
+  dynamixel::GroupSyncWrite sw(port, pkt, ADDR_GOAL_POSITION, 4);
+  for (auto &v : g) {
+    if (!is_known(v[0])) return "ERR id " + std::to_string(v[0]) + " non gere par ce serveur";
+    int pos = clampi(v[1], 0, 1023), spd = clampi(v[2], 0, 1023);
+    uint8_t b[4] = {DXL_LOBYTE(pos), DXL_HIBYTE(pos), DXL_LOBYTE(spd), DXL_HIBYTE(spd)};
+    sw.addParam(v[0], b);
+  }
+  int res = sw.txPacket();
+  return res == COMM_SUCCESS ? "OK" : "ERR " + std::string(pkt->getTxRxResult(res));
+}
+
+// Sync write brut d'un registre RAM (1 ou 2 octets) sur plusieurs servos
+static std::string sync_raw(int addr, int len, const std::vector<std::pair<int, int>> &g) {
+  if (addr < 24 || addr + len - 1 > 49) return "ERR adresse hors 24..49 (RAM seulement)";
+  if (len != 1 && len != 2) return "ERR len = 1 ou 2";
+  if (g.empty()) return "ERR aucune valeur";
+  dynamixel::GroupSyncWrite sw(port, pkt, addr, len);
+  for (auto &kv : g) {
+    if (!is_known(kv.first)) return "ERR id " + std::to_string(kv.first) + " non gere par ce serveur";
+    int v = clampi(kv.second, 0, len == 1 ? 255 : 65535);
+    uint8_t b[2] = {DXL_LOBYTE(v), DXL_HIBYTE(v)};
+    sw.addParam(kv.first, b);
+  }
+  int res = sw.txPacket();
+  return res == COMM_SUCCESS ? "OK" : "ERR " + std::string(pkt->getTxRxResult(res));
+}
+
 static std::string scan() {
   std::string r = "OK";
   for (int id : ids) r += " " + std::to_string(id) + ":" + (ping_id(id) ? "1" : "0");
@@ -354,6 +389,20 @@ static std::string handle(const std::string &line) {
     std::vector<std::pair<int, int>> g; int a, b;
     while (in >> a >> b) g.push_back({a, b});
     return sync_goals(g);
+  }
+
+  if (cmd == "GOALSPD") {               // triplets id position vitesse
+    std::vector<std::array<int, 3>> g; int a, b, c;
+    while (in >> a >> b >> c) g.push_back({a, b, c});
+    return sync_goal_speed(g);
+  }
+
+  if (cmd == "SYNCW") {                 // addr len puis paires id valeur
+    int addr, len;
+    if (!(in >> addr >> len)) return "ERR addr len manquants";
+    std::vector<std::pair<int, int>> g; int a, b;
+    while (in >> a >> b) g.push_back({a, b});
+    return sync_raw(addr, len, g);
   }
 
   int id;

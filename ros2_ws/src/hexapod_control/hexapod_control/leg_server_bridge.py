@@ -22,6 +22,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Int8MultiArray
 
 from .kinematics import load_legs
 
@@ -62,6 +63,16 @@ class Bridge(Node):
         p("max_load", 85.0)
         p("load_time", 0.6)
         p("temp_max", 62)
+        # Mouvement fluide : vitesse de chaque servo = celle qu'il faut pour arriver pile a la
+        # consigne suivante (GOALSPD du leg_server), x speed_gain, bornee.
+        p("speed_gain", 1.3)
+        p("min_speed", 20)
+        # Compliance selon la phase de la patte (/leg_phases de gait_node) :
+        # au sol (porte le robot) = raide ; en l'air = souple et doux.
+        p("stance_slope", 8)
+        p("stance_punch", 100)
+        p("swing_slope", 64)
+        p("swing_punch", 32)
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         self.send = bool(g("send"))
         self.legs = load_legs(g("legs_yaml") or None)
@@ -87,6 +98,16 @@ class Bridge(Node):
         self.t_ramp = None
         self.over = {}
         self.cycle = 0
+        self.last_goal = dict(self.start_raw)
+        self.leg_ids = {lg.n: [self.servo[nm][0] for nm in lg.joint_names] for lg in self.legs}
+        self.phases = {lg.n: 1 for lg in self.legs}        # au demarrage : toutes au sol
+        self.applied = {}
+        self.has_goalspd = self.ls.rpc("GOALSPD") == "ERR aucune consigne"
+        self.has_syncw = self.ls.rpc("SYNCW") == "ERR addr len manquants"
+        if not (self.has_goalspd and self.has_syncw):
+            self.get_logger().warn(
+                "leg_server ancien (sans GOALSPD / SYNCW) : vitesse fixe et compliance fixe. "
+                "Mettre a jour Dyna_test/src/leg_server.cpp sur la Pi et le relancer.")
         if self.send:
             for nm, (sid, _, _) in self.servo.items():
                 cmds = [f"SPEED {sid} {g('speed')}", f"TLIMIT {sid} 1023"]
@@ -104,6 +125,7 @@ class Bridge(Node):
         else:
             self.get_logger().info("SIMULATION (send:=false) : rien n'est envoye aux servos")
         self.create_subscription(JointState, "joint_states", self.on_js, 10)
+        self.create_subscription(Int8MultiArray, "leg_phases", self.on_phases, 10)
         self.create_timer(1.0 / g("rate"), self.tick)
 
     # ------------------------------------------------------------------ conversions
@@ -122,6 +144,27 @@ class Bridge(Node):
                 goals[sid] = raw
         if len(goals) == 18:
             self.target = goals
+
+    def on_phases(self, m):
+        for n, v in enumerate(m.data, start=1):
+            if n in self.phases:
+                self.phases[n] = int(v)
+
+    def apply_compliance(self):
+        """Envoie pente / punch des pattes dont la phase a change (2 sync write au plus)."""
+        g = lambda n: self.get_parameter(n).value  # noqa: E731
+        slope, punch = [], []
+        for n, ph in self.phases.items():
+            want = (g("stance_slope"), g("stance_punch")) if ph else (g("swing_slope"), g("swing_punch"))
+            if self.applied.get(n) == want:
+                continue
+            self.applied[n] = want
+            for sid in self.leg_ids[n]:
+                slope.append(f"{sid} {want[0] | (want[0] << 8)}")       # pentes CW et CCW (reg. 28-29)
+                punch.append(f"{sid} {want[1]}")
+        if slope:
+            self.ls.rpc("SYNCW 28 2 " + " ".join(slope))
+            self.ls.rpc("SYNCW 48 2 " + " ".join(punch))
 
     # ------------------------------------------------------------------ securite
     def check(self, st, startup=False):
@@ -170,7 +213,20 @@ class Bridge(Node):
             return
         try:
             if self.send:
-                self.ls.rpc("GOALSID " + " ".join(f"{i} {v}" for i, v in goals.items()))
+                if self.has_goalspd:
+                    dt = 1.0 / self.get_parameter("rate").value
+                    gain, vmin = self.get_parameter("speed_gain").value, self.get_parameter("min_speed").value
+                    parts = []
+                    for i, v in goals.items():
+                        deg_s = abs(v - self.last_goal.get(i, v)) * DEG_PER_UNIT / dt
+                        spd = int(max(vmin, min(1023, deg_s / 0.666 * gain)))   # AX : 0.111 tr/min = 0.666 deg/s
+                        parts.append(f"{i} {v} {spd}")
+                    self.ls.rpc("GOALSPD " + " ".join(parts))
+                else:
+                    self.ls.rpc("GOALSID " + " ".join(f"{i} {v}" for i, v in goals.items()))
+                if self.has_syncw:
+                    self.apply_compliance()
+            self.last_goal = goals
             self.cycle += 1
             if self.cycle % 5 == 0:                     # STATE ~40 ms : 5 Hz suffit
                 st = self.ls.state()

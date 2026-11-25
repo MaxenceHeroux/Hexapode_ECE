@@ -9,10 +9,20 @@ export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export CYCLONEDDS_URI="file://${_hexa_ws}/src/hexapod_bringup/config/cyclonedds.xml"
 
-# Interface reliee au cable (celle qui a une adresse 192.168.137.x) : eth0 sur la Pi,
-# adaptateur USB Ethernet sur le PC. Repli sur eth0.
-HEXAPODE_IFACE="$(ip -o -4 addr show 2>/dev/null | awk '$4 ~ /^192\.168\.137\./ {print $2; exit}')"
-export HEXAPODE_IFACE="${HEXAPODE_IFACE:-eth0}"
+# Interface vers l'autre machine : le cable (192.168.137.x : eth0 sur la Pi, adaptateur USB
+# sur le PC) en priorite, sinon le hotspot Wi-Fi du PC (10.42.0.x, voir hotspot.md).
+_hexa_ips="$(ip -o -4 addr show 2>/dev/null)"
+HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^192\.168\.137\./ {print $2; exit}')"
+[ -z "$HEXAPODE_IFACE" ] && HEXAPODE_IFACE="$(echo "$_hexa_ips" | awk '$4 ~ /^10\.42\.0\./ {print $2; exit}')"
+# Aucune liaison (cable debranche, hotspot eteint) : ROS en local seulement (simulation)
+export HEXAPODE_IFACE="${HEXAPODE_IFACE:-lo}"
+# Adresse de la Pi (leg_server) vue de cette machine
+case "$(echo "$_hexa_ips" | awk -v i="$HEXAPODE_IFACE" '$2 == i {print $4; exit}')" in
+  10.42.0.*)    export HEXAPODE_PI=10.42.0.10 HEXAPODE_PEER_PC=10.42.0.1 HEXAPODE_PEER_PI=10.42.0.10 ;;
+  192.168.137.*) export HEXAPODE_PI=192.168.137.10 HEXAPODE_PEER_PC=192.168.137.1 HEXAPODE_PEER_PI=192.168.137.10 ;;
+  *)            export HEXAPODE_PI=192.168.137.10 HEXAPODE_PEER_PC=127.0.0.1 HEXAPODE_PEER_PI=127.0.0.1 ;;
+esac    # HEXAPODE_PEER_* : pairs CycloneDDS de la liaison active (cyclonedds.xml)
+unset _hexa_ips
 
 # Espace de travail compile (colcon), s'il existe
 if [ -n "$ZSH_VERSION" ] && [ -f "${_hexa_ws}/install/setup.zsh" ]; then

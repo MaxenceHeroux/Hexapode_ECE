@@ -2,6 +2,25 @@
 
 Plan d'ensemble : [`../tps_archi.md`](../tps_archi.md).
 
+## ▶ Tout lancer en une commande
+
+```bash
+~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh          # simulation (aucun servo ne bouge)
+~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh dry      # + pont vers le robot, sans envoi (vérification)
+~/Hexapode2026/Hexapode_ECE/ros2_ws/hexapode.sh robot    # + pont : LE ROBOT SE LÈVE PUIS MARCHE (confirmation demandée)
+```
+
+Lance : environnement ROS (CycloneDDS), URDF, marche (`gait_node`), pont Foxglove **et
+l'application Foxglove déjà connectée** (`ws://localhost:8765`), fenêtre de pilotage
+clavier « Teleop hexapode », et selon le mode le pont vers le robot. Arrête d'abord une
+éventuelle session oubliée (deux marches en même temps = robot incohérent, port 8765 pris).
+Arguments en plus passés au lancement : `./hexapode.sh robot rviz:=true`.
+**Ctrl+C** arrête tout (sur le robot : gel, couple gardé ; `ESTOP` via `nc` pour le relâcher).
+
+Clavier (AZERTY, dans « Teleop hexapode ») : `i` avancer, `,` reculer, `j`/`l` tourner,
+Maj+`J`/`L` crabe, `t`/`b` monter/descendre le corps, `k` stop, `q`/`z` vitesse +/−10 % (`w`/`x` avance seule,
+`e`/`c` rotation seule). Le terminal du lancement affiche la vitesse reçue et la hauteur. Hauteur : `ros2 param set /gait_node body_height 0.12`.
+
 ## Environnement (PC et Pi)
 
 ```bash

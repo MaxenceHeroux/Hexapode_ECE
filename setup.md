@@ -1,5 +1,7 @@
 # Raspberry Pi « hexapode » — Guide de connexion et d'installation
 
+> Sans câble : hotspot Wi-Fi du PC, voir [hotspot.md](hotspot.md).
+
 Ce document décrit tout ce qui a été mis en place le **23/11/2026** entre le PC
 Windows et la Raspberry Pi de l'hexapode : connexion SSH, réseau, partage
 d'internet, VS Code, mises à jour, remise à neuf, sauvegardes, synchronisation

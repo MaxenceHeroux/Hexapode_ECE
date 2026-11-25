@@ -7,6 +7,7 @@ Entrees :
                 max_angular (modifiables en marche : ros2 param set / Foxglove)
 Sorties :
   /joint_states             sensor_msgs/JointState  18 articulations (robot_state_publisher)
+  /leg_phases               std_msgs/Int8MultiArray pattes 1..6 : 1 au sol (appui), 0 en l'air
   /foot_targets             geometry_msgs/PoseArray bouts de patte vises, repere odom
   /odom                     nav_msgs/Odometry       odometrie (integration de la consigne)
   TF odom -> base_footprint (deplacement), base_footprint -> base_link (hauteur),
@@ -20,7 +21,7 @@ from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Int8MultiArray
 from tf2_ros import TransformBroadcaster
 
 from .gait import TripodGait
@@ -46,19 +47,27 @@ class GaitNode(Node):
         p("max_linear", 0.10)
         p("max_angular", 0.6)
         p("cmd_timeout", 0.5)
+        p("height_gain", 0.04)     # linear.z (t / b) -> vitesse de la hauteur : 0.10 m/s -> 4 mm/s
+        p("height_rate", 0.01)     # m/s : rampe de hauteur (douce)
+        p("step_reach", 0.045)     # demi-pas max (m) : pas jusqu'a 9 cm ; plus grand = pieds plus ecartes     # linear.z (t / b) -> vitesse de la hauteur : 0.05 m/s -> 7.5 mm/s
         g = lambda n: self.get_parameter(n).value  # noqa: E731
 
         self.legs = load_legs(g("legs_yaml") or None)
-        self.gait = TripodGait(self.legs, stance_radius=g("stance_radius"),
-                               body_height=self._clamp_h(g("body_height")),
-                               step_height=g("step_height"), cycle_time=g("cycle_time"))
+        self.gait = TripodGait(self.legs, stance_radius=g("stance_radius"), body_height=g("body_height"),
+                               step_height=g("step_height"), cycle_time=g("cycle_time"),
+                               max_linear=g("max_linear"), max_angular=g("max_angular"), reach=g("step_reach"),
+                               height_rate=g("height_rate"),
+                               height_limits=(g("min_height"), g("max_height")))
         self.q = {lg.n: lg.ik(*self.gait.feet[lg.n]) or (0.0, 0.0, 0.0) for lg in self.legs}
         self.x = self.y = self.yaw = 0.0
         self.last_cmd = self.get_clock().now()
+        self.vz = 0.0
+        self.last_speed = None
 
         self.pub_js = self.create_publisher(JointState, "joint_states", 10)
         self.pub_feet = self.create_publisher(PoseArray, "foot_targets", 10)
         self.pub_odom = self.create_publisher(Odometry, "odom", 10)
+        self.pub_phase = self.create_publisher(Int8MultiArray, "leg_phases", 10)
         self.tf = TransformBroadcaster(self)
         self.create_subscription(Twist, "cmd_vel", self.on_cmd, 10)
         self.create_subscription(Float64, "body_height", self.on_height, 10)
@@ -66,12 +75,18 @@ class GaitNode(Node):
         self.dt = 1.0 / g("rate")
         self.create_timer(self.dt, self.tick)
         self.get_logger().info(
-            f"Marche en trepied prete : hauteur {self.gait.height * 1000:.0f} mm, "
-            f"rayon {self.gait.stance_radius * 1000:.0f} mm, cycle {self.gait.cycle_time:.2f} s")
+            f"Marche en trepied prete : hauteur {self.gait.height * 1000:.0f} mm "
+            f"(possible {self.gait.h_min * 1000:.0f}-{self.gait.h_max * 1000:.0f}), rayon des pieds "
+            f"{self.gait.radius * 1000:.0f} mm (voulu {self.gait.stance_radius * 1000:.0f}, "
+            f"adapte a la hauteur), cycle {self.gait.cycle_time:.2f} s")
 
     # ------------------------------------------------------------------ entrees
-    def _clamp_h(self, h):
-        return max(self.get_parameter("min_height").value, min(self.get_parameter("max_height").value, h))
+    def _set_height(self, h):
+        got = self.gait.set_height(h)
+        msg = f"hauteur -> {got * 1000:.0f} mm, rayon des pieds {self.gait.radius * 1000:.0f} mm"
+        if abs(got - h) > 1e-4:
+            msg += f" (demande {h * 1000:.0f} mm hors de {self.gait.h_min * 1000:.0f}-{self.gait.h_max * 1000:.0f})"
+        self.get_logger().info(msg)
 
     def on_cmd(self, m):
         vl, va = self.get_parameter("max_linear").value, self.get_parameter("max_angular").value
@@ -80,22 +95,36 @@ class GaitNode(Node):
         n = math.hypot(vx, vy)
         if n > vl:
             vx, vy = vx * vl / n, vy * vl / n
-        self.gait.set_cmd(vx, vy, clip(m.angular.z, va))
+        k = self.gait.set_cmd(vx, vy, clip(m.angular.z, va))
+        self.vz = m.linear.z                   # t / b du clavier : monter / descendre le corps
         self.last_cmd = self.get_clock().now()
+        speed = (round(math.hypot(m.linear.x, m.linear.y), 3), round(abs(m.angular.z), 3))
+        if speed != self.last_speed and any(speed):
+            self.last_speed = speed
+            lim = " (plafonnee)" if math.hypot(m.linear.x, m.linear.y) > vl or abs(m.angular.z) > va or k < 1 else ""
+            self.get_logger().info(f"consigne : {math.hypot(vx, vy) * k:.3f} m/s, {abs(clip(m.angular.z, va)) * k:.2f} "
+                                   f"rad/s{lim} (max {vl:.2f} m/s, {va:.2f} rad/s)")
 
     def on_height(self, m):
-        self.gait.set_height(self._clamp_h(m.data))
+        self._set_height(m.data)
 
     def on_params(self, params):
         for prm in params:
             if prm.name == "body_height":
-                self.gait.set_height(self._clamp_h(prm.value))
+                self._set_height(prm.value)
             elif prm.name == "stance_radius":
-                self.gait.stance_radius = prm.value
+                r = self.gait.set_radius(prm.value)
+                self.get_logger().info(f"rayon des pieds -> {r * 1000:.0f} mm (voulu {prm.value * 1000:.0f})")
             elif prm.name == "step_height":
                 self.gait.step_height = prm.value
             elif prm.name == "cycle_time" and prm.value > 0.2:
                 self.gait.cycle_time = prm.value
+            elif prm.name == "height_rate" and prm.value > 0:
+                self.gait.height_rate = prm.value
+            elif prm.name == "max_linear" and prm.value > 0:
+                self.gait.max_linear = prm.value
+            elif prm.name == "max_angular" and prm.value > 0:
+                self.gait.max_angular = prm.value
         return SetParametersResult(successful=True)
 
     # ------------------------------------------------------------------ boucle
@@ -103,6 +132,17 @@ class GaitNode(Node):
         now = self.get_clock().now()
         if (now - self.last_cmd).nanoseconds * 1e-9 > self.get_parameter("cmd_timeout").value:
             self.gait.set_cmd(0.0, 0.0, 0.0)          # plus de consigne : on s'arrete
+            self.vz = 0.0
+        if abs(self.vz) > 1e-4:                      # t / b : la hauteur suit linear.z (m/s)
+            before = self.gait.height_target
+            got = self.gait.set_height(before + self.vz * self.get_parameter("height_gain").value * self.dt)
+            if abs(got - before) < 1e-9:
+                self.get_logger().info(f"hauteur en butee : {got * 1000:.0f} mm "
+                                       f"(possible {self.gait.h_min * 1000:.0f}-{self.gait.h_max * 1000:.0f})",
+                                       throttle_duration_sec=2.0)
+            else:
+                self.get_logger().info(f"hauteur -> {got * 1000:.0f} mm, rayon des pieds "
+                                       f"{self.gait.radius * 1000:.0f} mm", throttle_duration_sec=0.5)
         vx, vy, wz = self.gait.step(self.dt)
 
         # odometrie (integration de la vitesse appliquee)
@@ -129,6 +169,9 @@ class GaitNode(Node):
         js.name = [nm for lg in self.legs for nm in lg.joint_names]
         js.position = [float(v) for lg in self.legs for v in self.q[lg.n]]
         self.pub_js.publish(js)
+        ph = Int8MultiArray()           # pattes 1..6 : 1 = au sol (porte le robot), 0 = en l'air
+        ph.data = [1 if (not self.gait.walking or self.gait.in_stance(lg.n)) else 0 for lg in self.legs]
+        self.pub_phase.publish(ph)
 
         h = self.gait.height
         tfs = [self._tf(stamp, "odom", "base_footprint", self.x, self.y, 0.0, self.yaw),

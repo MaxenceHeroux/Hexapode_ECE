@@ -7,6 +7,7 @@
 | [docs/leg_server_bridge.md](docs/leg_server_bridge.md) | pont `/joint_states` → `leg_server` (vrai robot), sécurités |
 
 ```bash
+../../hexapode.sh [sim|dry|robot]                                      # TOUT (Foxglove, teleop, pont)
 ros2 launch hexapod_control hexapod.launch.py                         # simulation
 ros2 launch hexapod_control hexapod.launch.py robot:=true teleop:=true # sur le robot
 ```

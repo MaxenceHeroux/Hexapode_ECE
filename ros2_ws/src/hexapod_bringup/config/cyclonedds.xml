@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  CycloneDDS pour l'hexapode : decouverte en UNICAST entre la Pi et le PC
-  (cable Ethernet, reseau 192.168.137.0/24). Voir tps_archi.md section 7.1.
-  HEXAPODE_IFACE (interface du cable) est fixee par ros2_ws/hexapode_env.sh.
+  CycloneDDS pour l'hexapode : decouverte en UNICAST entre la Pi et le PC, par le
+  cable Ethernet (192.168.137.0/24) ou par le hotspot Wi-Fi du PC (10.42.0.0/24,
+  voir hotspot.md). Voir tps_archi.md section 7.1.
+  HEXAPODE_IFACE (interface utilisee) est fixee par ros2_ws/hexapode_env.sh.
 -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
@@ -12,12 +13,17 @@
       </Interfaces>
       <AllowMulticast>false</AllowMulticast>
     </General>
+    <Tracing>
+      <Verbosity>severe</Verbosity>   <!-- pas d'avertissements reseau dans les terminaux -->
+    </Tracing>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <MaxAutoParticipantIndex>60</MaxAutoParticipantIndex>
+      <!-- Pairs de la liaison active seulement (cable ou hotspot), fixes par hexapode_env.sh :
+           un pair injoignable remplirait les terminaux de "ddsi_udp_conn_write failed". -->
       <Peers>
-        <Peer Address="192.168.137.1"/>   <!-- PC -->
-        <Peer Address="192.168.137.10"/>  <!-- Raspberry Pi -->
+        <Peer Address="${HEXAPODE_PEER_PC:-192.168.137.1}"/>   <!-- PC -->
+        <Peer Address="${HEXAPODE_PEER_PI:-192.168.137.10}"/>  <!-- Raspberry Pi -->
       </Peers>
     </Discovery>
   </Domain>
