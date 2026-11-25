@@ -64,10 +64,14 @@ DEFAULT_CONFIG = {
     "tibia_bend_deg": -30,
     "joints": [
         # inverted : servo monte a l'envers (cf. Is_inverted() de mv_hard_code)
-        # offset_deg : angle dessine quand le servo est a 512
+        # offset_deg : decalage du montage = angle de l'articulation quand le servo est a 512.
+        #   Il est pris en compte partout (curseur, lecture, butees, dessin) :
+        #   angle articulation = angle servo (512 = 0) + offset_deg.
         # 13 et 14 : sens verifie sur la vraie patte le 25/11/2026 (non inverses)
         {"name": "Coxa (hanche)", "id": 12, "inverted": True, "offset_deg": 0},
         {"name": "Femur",         "id": 13, "inverted": False, "offset_deg": 0},
+        # 14 : monte a 90 deg ; patte droite (tibia dans l'axe du femur) vers 793 = +82 deg
+        #      servo -> decalage -90 : articulation ~0 deg quand la patte est droite
         {"name": "Tibia",         "id": 14, "inverted": False, "offset_deg": -90},
     ],
     # Mouvement de pas : ECARTS (deg) coxa, femur, tibia ajoutes a la pose de depart
@@ -216,9 +220,10 @@ class ServoPanel(ttk.LabelFrame):
         self.loaded = False
 
         # --- consigne
-        self.target = tk.DoubleVar(value=0)
+        self.target = tk.DoubleVar(value=0)       # angle de l'ARTICULATION (decalage inclus)
         self.scale = tk.Scale(self, from_=-150, to=150, orient="horizontal", resolution=1,
-                              variable=self.target, length=260, label="Consigne (deg)",
+                              variable=self.target, length=260,
+                              label="Consigne articulation (deg)",
                               command=lambda _v: app.on_slider())
         self.scale.grid(row=0, column=0, columnspan=4, sticky="we")
 
@@ -228,6 +233,7 @@ class ServoPanel(ttk.LabelFrame):
         self.inv = tk.BooleanVar(value=j["inverted"])
         ttk.Checkbutton(self, text="Monte inverse", variable=self.inv,
                         command=app.on_geometry_change).grid(row=1, column=1, columnspan=2, sticky="w")
+        self.set_range()   # course du curseur selon inversion + decalage
 
         # --- lecture
         # taille fixe (46 car. x 4 lignes) : un texte qui change ne redimensionne pas la fenetre
@@ -313,6 +319,23 @@ class ServoPanel(ttk.LabelFrame):
     def reload(self):
         self.loaded = False
 
+    # ----- conversions servo <-> articulation (inversion + decalage du montage)
+    def off(self):
+        return float(self.app.cfg["joints"][self.i]["offset_deg"])
+
+    def to_deg(self, raw):
+        """Position brute du servo -> angle de l'articulation (deg)."""
+        return raw_to_deg(raw, self.inv.get()) + self.off()
+
+    def to_raw(self, deg):
+        """Angle de l'articulation (deg) -> position brute du servo."""
+        return deg_to_raw(deg - self.off(), self.inv.get())
+
+    def set_range(self):
+        """Course du curseur = course du servo (0..1023) exprimee en angle d'articulation."""
+        a, b = self.to_deg(0), self.to_deg(1023)
+        self.scale.config(from_=round(min(a, b)), to=round(max(a, b)))
+
     def reset_safety(self):
         self.app.reset_safety(self.id)
 
@@ -321,8 +344,7 @@ class ServoPanel(ttk.LabelFrame):
         if not s or not s.get("ok"):
             self.readout.config(text="ne repond pas", foreground="red")
             return
-        inv = self.inv.get()
-        deg = raw_to_deg(s["pos"], inv)
+        deg = self.to_deg(s["pos"])
         load = s["load"] * 100 / 1023
         txt = (f"pos {s['pos']:4d} ({deg:+6.1f} deg)  cible {s['goal']:4d}\n"
                f"charge {load:+5.0f} %  {s['temp']:2d} degC  {s['volt'] / 10:.1f} V"
@@ -337,7 +359,7 @@ class ServoPanel(ttk.LabelFrame):
         self.readout.config(text=txt, foreground=color)
         self.reset_btn.state(["!disabled"] if safety else ["disabled"])
         self.torque.set(s["torque"])
-        lo, hi = sorted((raw_to_deg(s["cw_limit"], inv), raw_to_deg(s["ccw_limit"], inv)))
+        lo, hi = sorted((self.to_deg(s["cw_limit"]), self.to_deg(s["ccw_limit"])))
         self.limit_lbl.config(text=f"butees actuelles : {s['cw_limit']} / {s['ccw_limit']}"
                                    f"  ({lo:+.0f} .. {hi:+.0f} deg)")
         if not self.loaded:
@@ -506,7 +528,7 @@ class LegApp(tk.Tk):
                 if who == "ALL" or p.id == who:
                     s = self.servo_state(i)
                     if s and s.get("ok"):
-                        p.target.set(round(raw_to_deg(s["pos"], p.inv.get())))
+                        p.target.set(round(p.to_deg(s["pos"])))
                     p.loaded = False
         self.after(500, resync)
 
@@ -523,7 +545,7 @@ class LegApp(tk.Tk):
         """Consignes des curseurs converties en positions brutes, limitees aux butees."""
         out = []
         for i, p in enumerate(self.panels):
-            raw = deg_to_raw(p.target.get(), p.inv.get())
+            raw = p.to_raw(p.target.get())
             s = self.servo_state(i)
             lo, hi = (s["cw_limit"], s["ccw_limit"]) if s and s.get("ok") else (0, 1023)
             out.append(max(lo, min(hi, raw)))
@@ -535,7 +557,7 @@ class LegApp(tk.Tk):
 
     def set_targets_deg(self, degs):
         for p, d in zip(self.panels, degs):
-            p.target.set(max(-150, min(150, d)))
+            p.target.set(max(p.scale.cget("from"), min(p.scale.cget("to"), d)))
         self.on_slider()
 
     def neutral(self):
@@ -544,25 +566,31 @@ class LegApp(tk.Tk):
                                    "Le mouvement peut etre grand si la patte est repliee."):
             return
         self.stop_gait()
-        self.set_targets_deg([0, 0, 0])
+        self.set_targets_deg([p.to_deg(512) for p in self.panels])
 
     def copy_present(self):
         for i, p in enumerate(self.panels):
             s = self.servo_state(i)
             if s and s.get("ok"):
-                p.target.set(round(raw_to_deg(s["pos"], p.inv.get())))
+                p.target.set(round(p.to_deg(s["pos"])))
 
     def on_geometry_change(self):
         try:
             for k, v in self.len_vars.items():
                 self.cfg["lengths_mm"][k] = float(v.get())
             self.cfg["tibia_bend_deg"] = float(self.bend_var.get())
-            for j, v, p in zip(self.cfg["joints"], self.off_vars, self.panels):
-                j["offset_deg"] = float(v.get())
-                j["inverted"] = bool(p.inv.get())
+            new_offs = [float(v.get()) for v in self.off_vars]
         except ValueError:
             messagebox.showerror("Geometrie", "Valeur non numerique.")
             return
+        for j, off, p in zip(self.cfg["joints"], new_offs, self.panels):
+            # la consigne garde la meme position servo : on la re-exprime avec le nouveau decalage
+            raw = deg_to_raw(p.target.get() - float(j["offset_deg"]), bool(j["inverted"]))
+            j["offset_deg"] = off
+            j["inverted"] = bool(p.inv.get())
+            p.set_range()
+            p.target.set(round(p.to_deg(raw)))
+            p.loaded = False
         save_config(self.cfg)
         self.status("Geometrie sauvegardee dans leg_gui_config.json")
 
@@ -599,15 +627,13 @@ class LegApp(tk.Tk):
         """Angles dessines (deg) des 3 articulations : 'pos' (reel) ou 'target' (consigne)."""
         out = []
         for i, p in enumerate(self.panels):
-            off = self.cfg["joints"][i]["offset_deg"]
             if source == "target":
-                a = p.target.get()
+                out.append(p.target.get())          # deja en angle d'articulation
             else:
                 s = self.servo_state(i)
                 if not s or not s.get("ok"):
                     return None
-                a = raw_to_deg(s["pos"], p.inv.get())
-            out.append(a + off)
+                out.append(p.to_deg(s["pos"]))
         return out
 
     def draw(self):
