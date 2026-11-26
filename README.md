@@ -5,6 +5,20 @@ piloté par une Raspberry Pi 4 sous Ubuntu 22.04 / ROS 2 Humble. Ce dépôt
 contient la carte électronique d'alimentation, le code de pilotage des servos,
 le modèle et la marche sous ROS 2, et la documentation de mise en route.
 
+Version actuelle : **v1.0.0** — voir [CHANGELOG.md](CHANGELOG.md).
+
+## Ce que sait faire le robot
+
+| | |
+|---|---|
+| **Marcher** | trépied avec recouvrement des appuis (aussi tétrapode, onde) piloté au clavier ou par Foxglove (`/cmd_vel`) : avancer, reculer, crabe, tourner ; jusqu'à 0,22 m/s et 0,8 rad/s |
+| **Régler sa hauteur** | 50 à 150 mm en marchant (`t` / `b`), l'écart des pieds s'adapte tout seul aux butées |
+| **Se stabiliser (IMU)** | tient son cap, reste horizontal si le sol penche, ne s'affaisse plus à chaque pas, s'arrête s'il bascule ; la rotation est asservie au gyroscope (compense le patinage) |
+| **Faire des figures** | coucou, danse, cabrer, cœur (fenêtre « Actions hexapode ») |
+| **Se dépanner** | remise en route des moteurs en une touche (`r`), servos bloqués remis en route automatiquement, reconnexion si la liaison décroche |
+| **Marcher sans fil** | la Pi fait son hotspot Wi-Fi au démarrage, servos et IMU démarrent seuls ; le câble reste prioritaire quand il est branché |
+| **Se voir** | modèle 3D (maillages SolidWorks) dans RViz et Foxglove |
+
 ## Démarrage rapide
 
 Tout se lance depuis le PC (Ubuntu + ROS 2 Humble) avec **une seule commande** :

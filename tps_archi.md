@@ -414,6 +414,18 @@ matériel : ce sont les premières à trancher.
 
 ## 10. Phases du projet
 
+**Avancement au 26/11/2026 (v1.0.0)** :
+
+| Phase | État | Ce qui est fait / ce qui reste |
+|---|---|---|
+| P0 | ✅ | ROS 2 Humble PC + Pi, CycloneDDS unicast (câble **et** hotspot Wi-Fi de la Pi) ; D1 (Ubuntu), D2 (Foxglove), D4 (xacro + maillages) tranchées ; reste : D3 (simulateur : MuJoCo, GPU Intel), D5 (IMU faite, contacts au pied) ; peser le robot |
+| P1 | ✅ | `hexapod_description` : URDF, maillages SolidWorks, écart avec `hexapod_model` < 0,001 mm ; reste : masses réelles |
+| P2 | 🟡 | pont provisoire `leg_server_bridge` (GOALSPD, compliance par phase, remise en route) au lieu du plugin ros2_control `hexapod_hardware` |
+| P3 | ✅ | `hexapod_control` : marche (3 allures), hauteur, figures, stabilisation IMU ; reste : `/body_pose`, actions `/stand` `/sit`, glissement mécanique (patins, zéro des coxas, entraxe fémur à mesurer) |
+| P4 | ✅ | Foxglove (pont + application), clavier, `hexapode.sh`, hotspot, services au démarrage |
+| P5 | 🟡 | IMU LSM6DSV16X (`hexapod_imu`) ; reste : LiDAR, caméra, odométrie fusionnée |
+| P6 | ⏳ | à faire |
+
 Ordre conseillé : **P0 → P1 → P2 → P3**, puis **P4 et P5 en parallèle**,
 puis **P6**. La simulation peut démarrer dès P1, mais ne devient fiable
 qu'avec les mesures de P2.
