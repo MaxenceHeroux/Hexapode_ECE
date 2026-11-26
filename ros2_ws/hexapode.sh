@@ -98,12 +98,6 @@ if [ "$WIFI" = true ]; then
     exit 1
   fi
   echo " ok"
-  if ! nc -z -w 2 10.42.0.10 5555 2>/dev/null; then
-    echo ">> leg_server ne tourne pas sur la Pi : lancement."
-    ssh -o ConnectTimeout=5 hexapode-wifi \
-      "cd ~/Hexapode_ECE/Dyna_test && (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
-    for i in $(seq 1 10); do nc -z -w 1 10.42.0.10 5555 2>/dev/null && break; sleep 1; done
-  fi
   export HEXAPODE_LINK=wifi
 fi
 
@@ -133,6 +127,22 @@ if pgrep -f "lib/hexapod_control/(gait_node|leg_server_bridge)" >/dev/null \
   pkill -x foxglove_bridge || true
   pkill -x robot_state_publisher || true
   sleep 1
+fi
+
+# Sur la Pi (cable ou Wi-Fi) : leg_server et IMU demarres s'ils ne tournent pas
+if [ "$ROBOT" != false ]; then
+  PI_SSH=hexapode; [ "$HEXAPODE_PI" = 10.42.0.10 ] && PI_SSH=hexapode-wifi
+  if ! nc -z -w 2 "$HEXAPODE_PI" 5555 2>/dev/null; then
+    echo ">> leg_server ne tourne pas sur la Pi (redemarrage ?) : lancement."
+    ssh -n -o ConnectTimeout=5 "$PI_SSH" \
+      "cd ~/Hexapode_ECE/Dyna_test && (nohup ./bin/leg_server > /tmp/leg_server.log 2>&1 &)"
+    for i in $(seq 1 10); do nc -z -w 1 "$HEXAPODE_PI" 5555 2>/dev/null && break; sleep 1; done
+    nc -z -w 1 "$HEXAPODE_PI" 5555 2>/dev/null || { echo ">> leg_server ne demarre pas : voir Dyna_test/dyna.md"; exit 1; }
+  fi
+  ssh -n -o ConnectTimeout=5 "$PI_SSH" 'pgrep -x imu_node >/dev/null && echo ">> IMU : deja lancee sur la Pi" || {
+      cd ~/Hexapode_ECE/ros2_ws && bash -c "source /opt/ros/humble/setup.bash; source hexapode_env.sh; \
+      setsid nohup ros2 launch hexapod_imu imu.launch.py > /tmp/imu_node.log 2>&1 < /dev/null &"; \
+      echo ">> IMU : noeud lance sur la Pi (/imu/data)"; }' 2>/dev/null || echo ">> IMU : Pi injoignable en ssh, IMU non lancee"
 fi
 
 if [ "$ROBOT" = true ]; then

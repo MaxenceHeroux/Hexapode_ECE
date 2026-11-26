@@ -6,14 +6,23 @@ Chaque patte alterne :
   - VOL (swing) : il se leve de `step_height`, et va de sa position de decollage au
     point d'atterrissage (en avant de la position neutre de la moitie du pas), sur
     une trajectoire en cloche.
-Trepied A = pattes 1, 3, 5 (avant gauche, milieu droite, arriere gauche), trepied B =
-2, 4, 6, en opposition de phase. Sans consigne, le robot finit son cycle et s'arrete
-pattes en position neutre.
+Allures (pattes : 1 avant gauche, 2 avant droite, 3 milieu droite, 4 arriere droite,
+5 arriere gauche, 6 milieu gauche) :
+  - tripod   : 2 trepieds (1,3,5) / (2,4,6), 3 pieds au sol (rapide) ;
+  - tetrapod : 3 paires (2,5) (3,6) (1,4), 4 pieds au sol (plus d'adherence) ;
+  - wave     : une patte a la fois (4,3,2,5,6,1), 5 pieds au sol (lent, tres stable).
+`duty` = fraction du cycle au sol ; au-dessus du minimum de l'allure, les groupes se
+recouvrent : la patte qui se pose est chargee AVANT que la suivante decolle (moins de
+glissement).
 """
 import math
 
-TRIPOD_OFFSET = {1: 0.0, 3: 0.0, 5: 0.0, 2: 0.5, 4: 0.5, 6: 0.5}
-DUTY = 0.5                     # fraction du cycle en appui
+GAITS = {   # nom -> (decalage de phase de chaque patte, duty minimal, duty par defaut)
+    "tripod": ({1: 0.0, 3: 0.0, 5: 0.0, 2: 0.5, 4: 0.5, 6: 0.5}, 0.5, 0.6),
+    "tetrapod": ({2: 0.0, 5: 0.0, 3: 1 / 3, 6: 1 / 3, 1: 2 / 3, 4: 2 / 3}, 2 / 3, 0.72),
+    "wave": ({4: 0.0, 3: 1 / 6, 2: 2 / 6, 5: 3 / 6, 6: 4 / 6, 1: 5 / 6}, 5 / 6, 0.86),
+}
+TRIPOD_OFFSET, _, DUTY = GAITS["tripod"]
 
 
 class FeasibilityMap:
@@ -82,8 +91,13 @@ def _smoothstep(s):
 class TripodGait:
     def __init__(self, legs, stance_radius=0.17, body_height=0.09, step_height=0.03,
                  cycle_time=1.0, height_rate=0.03, accel=0.2, ang_accel=1.0,
-                 max_linear=0.10, max_angular=0.6, reach=0.045, height_limits=(0.0, 1.0)):
+                 max_linear=0.10, max_angular=0.6, reach=0.045, height_limits=(0.0, 1.0),
+                 gait="tripod", duty=0.0):
         self.legs = legs
+        self.offsets, self.duty = GAITS["tripod"][0], 0.5
+        self.pattern = None
+        self.pending = None
+        self.set_pattern(gait, duty)
         self.reach = reach                  # demi-pas max (m) : taille de pas maximale = 2 x reach
         self.fmap = FeasibilityMap(legs, step_height, reach)
         lo, hi = self.fmap.height_range()
@@ -107,14 +121,32 @@ class TripodGait:
         self.liftoff = {lg.n: None for lg in legs}
 
     # ------------------------------------------------------------------ consignes
+    STRIDE_MARGIN = 0.8            # pas vise = 80 % du pas maximal (2 x reach) : marge pour les transitions
+
+    def foot_speed(self, vel):
+        """Vitesse max d'un pied au sol (m/s) pour la vitesse du corps `vel`."""
+        return max(math.hypot(*self._foot_vel(vel, *lg.neutral(self.radius, 0)[:2])) for lg in self.legs)
+
     def set_cmd(self, vx, vy, wz):
-        """Consigne ; reduite (en gardant la direction) si le pas depasserait 2 x reach."""
-        t_st = DUTY * self.cycle_time
-        worst = max(math.hypot(*self._foot_vel((vx, vy, wz), *lg.neutral(self.radius, 0)[:2]))
-                    for lg in self.legs) * t_st / 2
-        k = min(1.0, self.reach / worst) if worst > 1e-9 else 1.0
+        """Consigne ; reduite (en gardant la direction) si, meme a la cadence la plus rapide
+        (`cycle_time`), le pas depasserait 2 x reach."""
+        fs = self.foot_speed((vx, vy, wz))
+        stride = fs * self.duty * self.cycle_time
+        k = min(1.0, 2 * self.reach * self.STRIDE_MARGIN / stride) if stride > 1e-9 else 1.0
         self.cmd = (vx * k, vy * k, wz * k)
         return k
+
+    def set_pattern(self, name, duty=0.0):
+        """Change d'allure (appliquee a l'arret si le robot marche). duty 0 = defaut."""
+        if name not in GAITS:
+            raise ValueError(f"allure inconnue : {name} ({', '.join(GAITS)})")
+        offsets, dmin, ddef = GAITS[name]
+        d = ddef if not duty else max(dmin, min(0.95, duty))
+        if getattr(self, "walking", False):
+            self.pending = (name, offsets, d)
+        else:
+            self.pattern, self.offsets, self.duty = name, offsets, d
+        return d
 
     def set_height(self, h):
         """Hauteur voulue, bornee a ce que les pattes permettent. Le rayon des pieds
@@ -156,10 +188,10 @@ class TripodGait:
         return (-(vx - wz * y), -(vy + wz * x))
 
     def leg_phase(self, n):
-        return (self.phase + TRIPOD_OFFSET[n]) % 1.0
+        return (self.phase + self.offsets[n]) % 1.0
 
     def in_stance(self, n):
-        return self.leg_phase(n) < DUTY
+        return self.leg_phase(n) < self.duty
 
     # ------------------------------------------------------------------ pas de temps
     def step(self, dt):
@@ -189,11 +221,14 @@ class TripodGait:
             self.walking = True
         if self.walking and not moving and not self.reposition and self._phase_at_switch(dt):
             self.walking = False
+        if not self.walking and self.pending:                       # nouvelle allure : a l'arret
+            self.pattern, self.offsets, self.duty = self.pending
+            self.pending = None
 
         if self.walking:
             self.phase = (self.phase + dt / self.cycle_period()) % 1.0
 
-        t_stance = DUTY * self.cycle_period()
+        t_stance = self.duty * self.cycle_period()
         for lg in self.legs:
             n, p = lg.n, self.feet[lg.n]
             if not self.walking:
@@ -201,7 +236,7 @@ class TripodGait:
                 self.liftoff[n] = None
                 continue
             ph = self.leg_phase(n)
-            if ph < DUTY:                                    # appui
+            if ph < self.duty:                               # appui
                 self.liftoff[n] = None
                 fx, fy = self._foot_vel(self.vel, p[0], p[1])
                 p[0] += fx * dt
@@ -210,7 +245,7 @@ class TripodGait:
             else:                                            # vol
                 if self.liftoff[n] is None:
                     self.liftoff[n] = (p[0], p[1])
-                s = (ph - DUTY) / (1 - DUTY)
+                s = (ph - self.duty) / (1 - self.duty)
                 nx, ny, _ = self.neutral(lg)
                 fx, fy = self._foot_vel(self.vel, nx, ny)
                 tx, ty = nx - fx * t_stance / 2, ny - fy * t_stance / 2   # atterrit en avant
@@ -235,13 +270,18 @@ class TripodGait:
         return q is not None and lg.in_limits(q)
 
     def cycle_period(self):
-        """Cadence suivant la vitesse : `cycle_time` a vitesse max, jusqu'a 2x plus lent
-        a mi-vitesse et en dessous (pas plus courts ET moins frequents)."""
+        """Cadence suivant la vitesse : le pas fait ~90 % de la longueur permise ; la periode
+        va de `cycle_time` (vite) a 2 x `cycle_time` (lent : pas plus courts et plus lents)."""
         if not any(abs(c) > 1e-4 for c in self.cmd):
             return self.cycle_time            # arret / replacement : finir le pas sans trainer
-        vx, vy, wz = self.vel
-        frac = max(math.hypot(vx, vy) / self.max_linear, abs(wz) / self.max_angular)
-        return self.cycle_time / max(0.5, min(1.0, frac))
+        fs = self.foot_speed(self.vel)
+        if fs < 1e-6:
+            return 2 * self.cycle_time
+        margin = self.STRIDE_MARGIN
+        if self.reposition or abs(self.height_target - self.height) > 1e-3:
+            margin *= 0.5                 # changement de hauteur en marchant : pas plus courts
+        period = 2 * self.reach * margin / (fs * self.duty)
+        return max(self.cycle_time, min(2 * self.cycle_time, period))
 
     def _feet_ok_at(self, h):
         """Les pieds (au sol ou en l'air) restent-ils atteignables si le corps passe a h ?"""
@@ -253,6 +293,10 @@ class TripodGait:
         return True
 
     def _phase_at_switch(self, dt):
-        """Vrai pres d'un changement de trepied (toutes les pattes au sol)."""
-        step = dt / self.cycle_period()
-        return min(self.phase % DUTY, DUTY - self.phase % DUTY) < step * 1.5
+        """Vrai quand toutes les pattes sont au sol (ou a un pas de temps de l'etre)."""
+        step = 1.5 * dt / self.cycle_period()
+        for n in self.offsets:
+            ph = self.leg_phase(n)
+            if ph >= self.duty and min(ph - self.duty, 1.0 - ph) > step:
+                return False
+        return True

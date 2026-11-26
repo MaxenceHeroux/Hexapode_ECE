@@ -41,6 +41,7 @@ Compiler : `cd ros2_ws && colcon build --symlink-install`
 |---|---|
 | `hexapod_description` | URDF/xacro, maillages SolidWorks, `config/legs.yaml` (généré depuis la calibration de `leg_gui`) |
 | `hexapod_control` | Marche en trépied : `/cmd_vel` → bouts de patte → cinématique inverse → `/joint_states` |
+| `hexapod_imu` | IMU LSM6DSV16X (carte Neuro IMU, I2C sur la Pi) → `/imu/data` ; calibration ([README](src/hexapod_imu/README.md)) |
 
 ## Voir le modèle
 

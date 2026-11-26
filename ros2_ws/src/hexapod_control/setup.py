@@ -24,6 +24,7 @@ setup(
         "console_scripts": [
             "gait_node = hexapod_control.gait_node:main",
             "leg_server_bridge = hexapod_control.leg_server_bridge:main",
+            "action_keys = hexapod_control.action_keys:main",
         ],
     },
 )

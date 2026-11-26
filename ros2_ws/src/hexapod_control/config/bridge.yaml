@@ -13,8 +13,8 @@ leg_server_bridge:
     speed_gain: 1.5          # vitesse servo = vitesse necessaire pour la consigne suivante x gain
     min_speed: 30
     # compliance [coxa, femur, tibia] selon la phase de la patte
-    stance_slope: [32, 8, 8]       # au sol (porte le robot) : femur / tibia raides
-    stance_punch: [32, 100, 100]
+    stance_slope: [8, 8, 8]        # au sol : tout raide (la coxa pousse le corps, surtout en rotation)
+    stance_punch: [100, 100, 100]
     swing_slope: [64, 128, 64]     # en l'air : souple, petit punch (pas de tremblement)
     swing_punch: [16, 16, 24]
     # auto-reparation au lieu du gel
@@ -22,5 +22,11 @@ leg_server_bridge:
     stuck_time: 1.0          # s : ... depuis plus longtemps -> RESET du servo
     max_resets: 6            # remises en route max dans reset_window s, sinon gel
     reset_window: 30.0
+    auto_air: false          # detection auto du robot porte : inutilisable (charge AX ~0 % debout) -> touche p
+    air_load: 6.0            # % charge moyenne des femurs au sol : en dessous pendant air_time -> porte en l'air
+    air_time: 0.6
+    ground_load: 12.0        # % : au-dessus -> de nouveau au sol (debout ~20 %)
+    air_slope: [64, 128, 128]  # porte en l'air : tout souple...
+    air_punch: [0, 0, 0]       # ... et sans punch (mouvements fluides)
     absent_time: 2.0         # s sans reponse d'un servo (USB qui decroche) avant gel
     link_timeout: 4.0        # s sans reponse du leg_server (cable qui perd des paquets) avant gel ; avant : reconnexion et nouvel essai

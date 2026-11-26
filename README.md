@@ -33,6 +33,10 @@ démarre `leg_server` dessus si besoin.
 | Maj + `J` / `L` | crabe gauche / droite |
 | `t` / `b` | monter / descendre le corps (doucement) |
 | `k` | stop |
+
+**Figures et remise en route** (fenêtre « Actions hexapode ») : `1` coucou, `2` danse,
+`3` cabrer, `4` cœur, `0` arrêter ; **`r` remet les moteurs en route** quand ça bloque.
+
 | `q` / `z` | vitesse +10 % / −10 % (max 0,20 m/s) |
 
 **Arrêter** : Ctrl+C dans le terminal du lancement → le robot se fige, couple gardé.
@@ -50,6 +54,8 @@ l'alimentation. Détails : [ros2_ws/src/hexapod_control/docs/lancement.md](ros2_
 | [setup.md](setup.md) | Mise en route de la Raspberry Pi : connexion SSH (`ssh hexapode`), réseau et partage de connexion par câble, VS Code, mises à jour, sauvegardes, synchronisation git PC ↔ Pi |
 | [hotspot.md](hotspot.md) | **Sans câble** : hotspot Wi-Fi de la Pi, le PC s'y connecte (`ssh hexapode-wifi`, `hexapode.sh robot-distance`) ; câble prioritaire ; dépannage |
 | [ros2_ws/README.md](ros2_ws/README.md) | Espace de travail ROS 2 : environnement, paquets, lancement, Foxglove |
+| [ros2_ws/src/hexapod_imu/README.md](ros2_ws/src/hexapod_imu/README.md) | IMU : nœud `/imu/data` sur la Pi, calibration, dépannage |
+| [PCB/Neuro_IMU/branchement.md](PCB/Neuro_IMU/branchement.md) | Carte IMU maison (LSM6DSV16X) : branchement I2C sur la Pi, brochage de la Pi 4 |
 | [ros2_ws/src/hexapod_control/docs/](ros2_ws/src/hexapod_control/docs) | Nœuds ROS : [lancement](ros2_ws/src/hexapod_control/docs/lancement.md), [marche `gait_node`](ros2_ws/src/hexapod_control/docs/gait_node.md), [pont `leg_server_bridge`](ros2_ws/src/hexapod_control/docs/leg_server_bridge.md) |
 | [Dyna_test/dyna.md](Dyna_test/dyna.md) | Servos Dynamixel : `leg_server` (Pi) et son protocole, interface graphique des 6 pattes et cinématique (PC), réglages des servos, port `/dev/u2d2` |
 | [Dyna_test/test_torque.md](Dyna_test/test_torque.md) | `test_torque` : lever le robot (`--home` étoile de mer), options, essais |

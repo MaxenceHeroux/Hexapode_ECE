@@ -22,3 +22,6 @@ graphify-out/.graphify_root
 __pycache__/
 .pytest_cache/
 cyclonedds.log
+
+# Carte IMU : projet KiCad decompresse (contient un depot git .history) ; IMU.zip est versionne
+PCB/Neuro_IMU/IMU/

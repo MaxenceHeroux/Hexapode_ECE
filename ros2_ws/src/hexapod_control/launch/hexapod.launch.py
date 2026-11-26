@@ -63,6 +63,10 @@ def generate_launch_description():
                 condition=IfCondition(PythonExpression(
                     ["'", LaunchConfiguration("app"), "' == 'true' and '", foxglove_app, "' == ''"]))),
 
+        Node(package="hexapod_control", executable="action_keys", name="action_keys",
+             prefix="gnome-terminal --title='Actions hexapode' --wait --",
+             condition=IfCondition(LaunchConfiguration("teleop"))),
+
         Node(package="teleop_twist_keyboard", executable="teleop_twist_keyboard", name="teleop",
              prefix="gnome-terminal --title='Teleop hexapode' --wait --",
              parameters=[{"speed": 0.10, "turn": 0.4}],

@@ -29,9 +29,9 @@ def test_ik_fk_roundtrip(legs):
             assert math.dist(lg.fk(q2), p) < 1e-6
 
 
-def run(legs, cmd, seconds, height=0.12, new_height=None):
+def run(legs, cmd, seconds, height=0.12, new_height=None, gait="tripod"):
     g = TripodGait(legs, body_height=height, stance_radius=0.12, cycle_time=0.8,
-                   max_linear=0.20, max_angular=0.8)
+                   max_linear=0.20, max_angular=0.8, gait=gait)
     g.set_cmd(*cmd)
     dt, worst = 0.02, []
     x = y = yaw = 0.0
@@ -61,8 +61,9 @@ def run(legs, cmd, seconds, height=0.12, new_height=None):
 
 @pytest.mark.parametrize("cmd", [(0.10, 0, 0), (-0.10, 0, 0), (0, 0.08, 0), (0, 0, 0.6), (0.07, 0.0, 0.4),
                                  (0.20, 0, 0), (-0.20, 0, 0), (0, 0.20, 0), (0, 0, 0.8), (0.15, 0.0, 0.6)])
-def test_walk(legs, cmd):
-    g, pose, slip = run(legs, cmd, 6.0)
+@pytest.mark.parametrize("gait", ["tripod", "tetrapod", "wave"])
+def test_walk(legs, cmd, gait):
+    g, pose, slip = run(legs, cmd, 6.0, gait=gait)
     assert slip < 0.004          # glissement d'un pied en appui < 4 mm par pas de temps (rampes)
     if cmd[0]:
         assert pose[0] * cmd[0] > 0
@@ -102,7 +103,7 @@ def _all_ok(g, legs):
 def test_height_sweep_adapts_radius(legs, cmd):
     """Hauteur de haut en bas et retour, avec les pattes serrees voulues (0.12) :
     le rayon s'adapte et aucune pose ne sort des butees."""
-    g = TripodGait(legs, stance_radius=0.12, body_height=0.12)
+    g = TripodGait(legs, stance_radius=0.12, body_height=0.12, height_limits=(0.05, 0.15))   # bornes du noeud
     g.set_cmd(*cmd)
     for target in (g.h_min, g.h_max, 0.08, 0.12):
         g.set_height(target)
@@ -113,9 +114,41 @@ def test_height_sweep_adapts_radius(legs, cmd):
 
 
 def test_cadence_follows_speed(legs):
-    g = TripodGait(legs, cycle_time=1.0, max_linear=0.10)
-    g.set_cmd(0.05, 0, 0)
-    g.vel = (0.10, 0, 0)
-    assert g.cycle_period() == pytest.approx(1.0)
-    g.vel = (0.03, 0, 0)
-    assert g.cycle_period() == pytest.approx(2.0)
+    """Lent : pas lents (2 x cycle_time) ; vite : cycle_time ; le pas ne depasse jamais 2 x reach."""
+    g = TripodGait(legs, cycle_time=0.8, max_linear=0.20)
+    g.set_cmd(0.02, 0, 0)
+    g.vel = g.cmd
+    assert g.cycle_period() == pytest.approx(1.6)
+    g.set_cmd(0.20, 0, 0)
+    g.vel = g.cmd
+    assert g.cycle_period() == pytest.approx(0.8)
+    for v in (0.03, 0.08, 0.13, 0.2):
+        g.set_cmd(v, 0, 0)
+        g.vel = g.cmd
+        assert g.foot_speed(g.vel) * g.duty * g.cycle_period() <= 2 * g.reach + 1e-9
+
+
+@pytest.mark.parametrize("gait,min_feet", [("tripod", 3), ("tetrapod", 4), ("wave", 5)])
+def test_feet_on_ground(legs, gait, min_feet):
+    """Nombre de pieds au sol a tout instant, et recouvrement (plus de 3 / 4 / 5 par moments)."""
+    g = TripodGait(legs, gait=gait)
+    g.set_cmd(0.1, 0, 0)
+    counts = []
+    for _ in range(400):
+        g.step(0.02)
+        if g.walking:
+            counts.append(sum(g.in_stance(lg.n) for lg in legs))
+    assert min(counts) >= min_feet and max(counts) > min_feet
+
+
+def test_pattern_change_waits_for_stop(legs):
+    g = TripodGait(legs)
+    g.set_cmd(0.1, 0, 0)
+    for _ in range(50):
+        g.step(0.02)
+    g.set_pattern("wave")
+    assert g.pattern == "tripod"
+    g.set_cmd(0, 0, 0)
+    for _ in range(200):
+        g.step(0.02)
+    assert g.pattern == "wave" and not g.walking

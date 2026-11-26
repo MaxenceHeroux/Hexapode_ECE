@@ -22,7 +22,8 @@ import time
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Int8MultiArray
+from std_msgs.msg import Bool, Int8MultiArray
+from std_srvs.srv import SetBool, Trigger
 
 from .kinematics import load_legs
 
@@ -96,10 +97,22 @@ class Bridge(Node):
         # Compliance selon la phase de la patte (/leg_phases de gait_node), par articulation
         # [coxa, femur, tibia] : au sol (porte le robot) femur / tibia raides ; en l'air tout
         # souple et sans gros punch (sinon les servos du haut de la patte tremblent).
-        p("stance_slope", [32, 8, 8])
-        p("stance_punch", [32, 100, 100])
+        p("stance_slope", [8, 8, 8])
+        p("stance_punch", [100, 100, 100])
         p("swing_slope", [64, 128, 64])
         p("swing_punch", [16, 16, 24])
+        # Robot PORTE en l'air (aucune patte au sol ne porte de poids) : tout souple, sans
+        # punch -> mouvements fluides, pas d'a-coups. Detection par la charge des femurs /
+        # tibias des pattes censees etre au sol (avec hysteresis).
+        # Detection automatique DESACTIVEE par defaut : les engrenages des AX-12A tiennent le
+        # poids sans effort moteur, la "charge" lue est ~0 % robot debout (mesure du 26/11).
+        # Mode porte a la main : service /set_lifted (touche p de la fenetre Actions).
+        p("auto_air", False)
+        p("air_load", 6.0)         # % : charge moyenne des femurs au sol en dessous -> en l'air...
+        p("air_time", 0.6)         # s : ... depuis plus longtemps
+        p("ground_load", 12.0)     # % : charge moyenne au-dessus -> de nouveau au sol (debout : ~20 %)
+        p("air_slope", [64, 128, 128])
+        p("air_punch", [0, 0, 0])
         # Auto-reparation au lieu du gel : un servo en alarme (surcharge...) ou bloque loin de
         # sa consigne (> stuck_err unites pendant stuck_time s) est remis en route (RESET) ;
         # au-dela de max_resets en reset_window s, ou en surchauffe, ou absent plus de
@@ -109,6 +122,7 @@ class Bridge(Node):
         p("max_resets", 6)
         p("reset_window", 30.0)
         p("absent_time", 2.0)
+        p("reset_ramp_time", 3.0)  # s : rampe apres /reset_servos (position reelle -> pose de la marche)
         p("link_timeout", 4.0)     # s sans reponse du leg_server (liaison qui perd des paquets) avant gel
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         self.send = bool(g("send"))
@@ -149,6 +163,9 @@ class Bridge(Node):
         self.leg_ids = {lg.n: [self.servo[nm][0] for nm in lg.joint_names] for lg in self.legs}
         self.phases = {lg.n: 1 for lg in self.legs}        # au demarrage : toutes au sol
         self.applied = {}
+        self.lifted = False
+        self.low_since = None
+        self.pub_lifted = self.create_publisher(Bool, "robot_lifted", 10)
         self.has_goalspd = self.ls.rpc("GOALSPD") == "ERR aucune consigne"
         self.has_syncw = self.ls.rpc("SYNCW") == "ERR addr len manquants"
         if not (self.has_goalspd and self.has_syncw):
@@ -173,6 +190,11 @@ class Bridge(Node):
             self.get_logger().info("SIMULATION (send:=false) : rien n'est envoye aux servos")
         self.create_subscription(JointState, "joint_states", self.on_js, 10)
         self.create_subscription(Int8MultiArray, "leg_phases", self.on_phases, 10)
+        self.figure_until = 0.0              # pas de detection "porte en l'air" pendant une figure
+        self.create_subscription(Bool, "figure_active", self.on_figure, 10)
+        self.ramp_dur = g("ramp_time")
+        self.create_service(Trigger, "reset_servos", self.on_reset)
+        self.create_service(SetBool, "set_lifted", self.on_set_lifted)
         self.create_timer(1.0 / g("rate"), self.tick)
 
     # ------------------------------------------------------------------ conversions
@@ -202,7 +224,10 @@ class Bridge(Node):
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         slope, punch = [], []
         for n, ph in self.phases.items():
-            sl, pu = (g("stance_slope"), g("stance_punch")) if ph else (g("swing_slope"), g("swing_punch"))
+            if self.lifted:
+                sl, pu = g("air_slope"), g("air_punch")
+            else:
+                sl, pu = (g("stance_slope"), g("stance_punch")) if ph else (g("swing_slope"), g("swing_punch"))
             want = (tuple(sl), tuple(pu))
             if self.applied.get(n) == want:
                 continue
@@ -213,6 +238,85 @@ class Bridge(Node):
         if slope:
             self.ls.rpc("SYNCW 28 2 " + " ".join(slope))
             self.ls.rpc("SYNCW 48 2 " + " ".join(punch))
+
+    def on_set_lifted(self, req, resp):
+        """Mode "porte en l'air" a la main : pattes souples sans punch, stabilisation en pause."""
+        self.lifted, self.low_since = bool(req.data), None
+        self.applied.clear()
+        self.pub_lifted.publish(Bool(data=self.lifted))
+        resp.success = True
+        resp.message = "porte en l'air : pattes souples, sans punch" if self.lifted else "au sol : compliance normale"
+        self.get_logger().info(resp.message)
+        return resp
+
+    def on_figure(self, m):
+        if m.data:
+            self.figure_until = time.time() + 3.0     # + 3 s apres la fin de la figure
+
+    def update_lifted(self, st):
+        if not self.get_parameter("auto_air").value:
+            self.pub_lifted.publish(Bool(data=self.lifted))
+            return
+        self._auto_lifted(st)
+
+    def _auto_lifted(self, st):
+        """Robot porte en l'air ? Charge moyenne des FEMURS des pattes au sol (ce sont eux qui
+        portent le poids). Seulement apres la rampe de lever."""
+        if self.t_ramp is None or time.time() - self.t_ramp < self.ramp_dur:
+            return
+        if time.time() < self.figure_until:          # figure : pattes levees expres, charges faussees
+            self.low_since = None
+            return
+        loads = []
+        for n, ph in self.phases.items():
+            if not ph:
+                continue
+            for sid in self.leg_ids[n][1:2]:
+                s = st.get(sid)
+                if s and s.get("ok") and s.get("torque"):
+                    loads.append(abs(s["load"]) * 100 / 1023)
+        if not loads:
+            return
+        mean = sum(loads) / len(loads)
+        now = time.time()
+        if not self.lifted:
+            if mean < self.get_parameter("air_load").value:
+                self.low_since = self.low_since or now
+                if now - self.low_since > self.get_parameter("air_time").value:
+                    self.lifted = True
+                    self.get_logger().info(f"robot porte en l'air (charge {mean:.0f} %) : pattes souples, sans punch")
+            else:
+                self.low_since = None
+        elif mean > self.get_parameter("ground_load").value:
+            self.lifted, self.low_since = False, None
+            self.get_logger().info(f"robot de nouveau au sol (charge {mean:.0f} %) : compliance normale")
+        self.pub_lifted.publish(Bool(data=self.lifted))
+
+    def on_reset(self, req, resp):
+        """Remise en route de tous les servos (bloques, en securite, couple coupe, pont gele) :
+        RESET ALL, puis rampe douce de la position reelle vers la pose de la marche."""
+        try:
+            rep = self.ls.rpc("RESET ALL")
+            st = self.ls.state()
+        except (OSError, RuntimeError, ConnectionError) as e:
+            resp.success, resp.message = False, f"leg_server injoignable : {e}"
+            return resp
+        absent = [sid for sid in self.limits if not st.get(sid, {}).get("ok")]
+        self.start_raw = {sid: min(self.limits[sid][1], max(self.limits[sid][0], st[sid]["pos"]))
+                          for sid in self.limits if st.get(sid, {}).get("ok")}
+        for sid in absent:
+            self.start_raw[sid] = self.last_goal.get(sid, 512)
+        self.ramp_dur = self.get_parameter("reset_ramp_time").value
+        self.t_ramp = None
+        self.frozen = None
+        self.resets, self.stuck, self.over, self.absent_since = [], {}, {}, {}
+        self.applied.clear()
+        self.link_lost = None
+        msg = f"servos remis en route ({rep}), rampe de {self.ramp_dur:.0f} s" + \
+              (f" ; ABSENTS : {absent}" if absent else "")
+        self.get_logger().warn(msg)
+        resp.success, resp.message = not absent, msg
+        return resp
 
     # ------------------------------------------------------------------ securite
     def check(self, st, startup=False):
@@ -292,7 +396,7 @@ class Bridge(Node):
             return
         if self.t_ramp is None:
             self.t_ramp = time.time()
-        k = min(1.0, (time.time() - self.t_ramp) / self.get_parameter("ramp_time").value)
+        k = min(1.0, (time.time() - self.t_ramp) / self.ramp_dur)
         goals = {sid: int(round(self.start_raw[sid] + (self.target[sid] - self.start_raw[sid]) * k))
                  for sid in self.target}
         # Seule la pose demandee par la marche peut etre hors butees (la rampe part de
@@ -321,6 +425,7 @@ class Bridge(Node):
             if self.cycle % 5 == 0:                     # STATE ~40 ms : 5 Hz suffit
                 st = self.ls.state()
                 why = self.supervise(st, goals) if self.send else self.check(st)
+                self.update_lifted(st)
                 if why:
                     self.freeze(why)
                     return
@@ -331,10 +436,13 @@ class Bridge(Node):
                     self.get_logger().info(
                         f"{'rampe %.0f %%' % (k * 100) if k < 1 else 'suivi'} | ecart max "
                         f"consigne/position {err} | charge max {load:.0f} % | "
-                        f"{min(s['volt'] for s in st.values() if s.get('ok')) / 10:.1f} V")
+                        f"{min((s['volt'] for s in st.values() if s.get('ok')), default=0) / 10:.1f} V")
             if self.link_lost is not None:
                 self.get_logger().info(f"liaison leg_server retablie apres {time.time() - self.link_lost:.1f} s")
                 self.link_lost = None
+        except (ValueError, KeyError, TypeError) as e:          # reponse incomplete (USB qui decroche...)
+            self.get_logger().warn(f"etat des servos incomplet ({type(e).__name__} : {e}) -> on continue",
+                                   throttle_duration_sec=1.0)
         except (OSError, RuntimeError, ConnectionError) as e:
             # Liaison qui perd des paquets / U2D2 qui se reconnecte : on reessaie au tick
             # suivant (connexion rouverte) ; gel seulement si ca dure plus de link_timeout.

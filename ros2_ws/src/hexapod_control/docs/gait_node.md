@@ -62,6 +62,85 @@ pendant que B est en l'air, puis l'inverse.
 
 ---
 
+## Figures : coucou, danse, cabrer, cœur
+
+`/action` (`std_msgs/String`) : `coucou`, `danse`, `cabrer`, `coeur`, ou `stop`
+([`actions.py`](../hexapod_control/actions.py)). Clavier : fenêtre **« Actions hexapode »**
+(`ros2 run hexapod_control action_keys`, ouverte par `hexapode.sh`) : `1` coucou, `2` danse,
+`3` cabrer, `4` cœur, `0`/espace stop, `r` remise en route des moteurs.
+
+| Figure | Durée | Ce que fait le robot |
+|---|---|---|
+| `coucou` | 6 s | corps décalé vers l'arrière-droite, patte avant gauche levée de 10 cm, 3 allers-retours |
+| `danse` | 10 s | pieds au sol, le corps se balance (cercle, roulis, tangage, lacet, haut-bas) |
+| `cabrer` | 7 s | corps reculé de 3,5 cm et nez levé de 12°, les deux pattes avant en l'air qui battent |
+| `coeur` | 9 s | patte avant gauche levée qui dessine 2 cœurs de ~7 cm en l'air |
+
+- Entrée et sortie en douceur (1,2 s) ; la figure démarre quand la marche est arrêtée.
+- `stop`, ou **toucher au clavier de marche**, arrête la figure en douceur (retour debout).
+- Pendant une figure : pas de mise à niveau ; les pattes levées sont publiées « en l'air »
+  sur `/leg_phases` (compliance souple), les autres « au sol ».
+- Tests (`test/test_actions.py`) : toutes les poses atteignables et dans les butées à deux
+  hauteurs ; arrêt en plein milieu sans saut (< 2 cm par pas de 20 ms), retour exact debout.
+
+## Allures et glissement
+
+| `gait` | Pieds au sol | `duty` par défaut | Usage |
+|---|---|---|---|
+| **`tripod`** (défaut) | 3, et 6 pendant le recouvrement | 0,60 | le plus efficace |
+| `tetrapod` | 4 (paires 2-5, 3-6, 1-4) | 0,72 | plus d'appuis, mais moins bon en rotation sur ce robot |
+| `wave` | 5 (une patte à la fois) | 0,86 | très stable, lent |
+
+`duty` = part du cycle au sol. Au-dessus du minimum (0,5 / 0,67 / 0,83), les groupes se
+**recouvrent** : la patte qui se pose est chargée avant que la suivante décolle. C'est ce
+qui réduit le glissement : sans recouvrement, le robot passe un instant sur des pieds pas
+encore chargés (retard des servos).
+
+**Cadence** : le pas fait ~80 % de la longueur permise (`step_reach`) ; la période va de
+`cycle_time` (vite) à 2 × `cycle_time` (lent), et les pas sont raccourcis de moitié
+pendant un changement de hauteur.
+
+Essai du 26/11/2026, rotation sur place commandée à 0,4 rad/s pendant 6 s (rotation réelle
+mesurée à l'IMU, aide à la rotation active) :
+
+| Réglage | Gauche | Droite |
+|---|---|---|
+| trépied sans recouvrement, coxas souples | 31 % | 32 % |
+| + coxas raides au sol | 41 % | 37 % |
+| + aide à la rotation par le gyroscope (`turn_assist`) | 36 % | 71 % |
+| **+ trépied avec recouvrement (`duty` 0,6)** | **65 %** | **74 %** |
+| tétrapode | 24 % | 72 % |
+| onde | 26 % | 30 % |
+
+Changer d'allure (appliquée à l'arrêt) : `ros2 param set /gait_node gait tetrapod`,
+`ros2 param set /gait_node duty 0.65`.
+
+## Stabilisation par l'IMU
+
+Avec `/imu/data` (paquet `hexapod_imu`, sur la Pi), `gait_node` corrige la marche entre le
+générateur de pas et la cinématique inverse ([`stabilizer.py`](../hexapod_control/stabilizer.py)) :
+
+| Correction | Comment | Réglages |
+|---|---|---|
+| **Tourner pour de vrai** (`turn_assist`) | la rotation mesurée par le gyroscope est comparée à la rotation demandée ; la commande est augmentée (jusqu'à 2,5×, dans `max_angular`) pour rattraper le patinage des pieds | `turn_assist`, `turn_kp` 0,5, `turn_ki` 1,5, `turn_boost` 1,5 |
+| **Dérive en crabe** | glissement latéral invisible pour l'IMU : vitesse latérale ajoutée = `drift_comp` × avance (mesuré : ~10 cm à gauche par mètre) | `drift_comp` −0,10 |
+| **Avancer droit** (tenue de cap) | quand on ne demande pas de tourner, le cap au départ est mémorisé ; l'écart mesuré par l'IMU est corrigé par une petite rotation (PI, au plus 0,3 rad/s). Relâché dès qu'on tourne | `heading_hold`, `heading_kp` 1,2, `heading_ki` 0,2, `heading_max` |
+| **Corps horizontal** (compensation active) | le roulis / tangage mesuré est compensé en inclinant le corps par rapport aux pieds (PI, ±10° max) : sol en pente ou qui bouge **lentement** → le haut reste droit. Si l'inclinaison demandée sort des butées, elle est réduite (½, puis 0) | `level`, `level_kp` 0,3, `level_ki` 3,0, `level_max_deg` 10 |
+| **Ne plus descendre à chaque pas** | pendant qu'un trépied est en l'air, les pattes au sol poussent 3 mm plus bas (les servos plient sous la charge) | `sag_comp` 0,003 m |
+| **Sécurité chute** | inclinaison > 35° : la marche s'arrête | `fall_deg` |
+| Odométrie | le cap de `/odom` vient de l'IMU (plus juste que la consigne) | |
+
+Sans IMU (nœud arrêté, plus de message depuis 0,5 s) : marche normale, inclinaison
+ramenée doucement à plat ; message `plus d'IMU : marche sans stabilisation`.
+
+Tests hors ROS (`test/test_stabilizer.py`) : sol incliné de 6° / −4° → corps ramené à
+moins de 0,3° ; sol qui oscille de ±5° à 0,15 Hz → corps à moins de 2° ; dérive de cap de
+0,05 rad/s → cap tenu à moins de 2° ; corps incliné de 8° → pieds atteignables. Essai du
+26/11/2026 debout : roulis −0,01°, tangage 0,00° (au plus 0,15°).
+
+Désactiver / régler en marche : `ros2 param set /gait_node level false`,
+`ros2 param set /gait_node sag_comp 0.005`, `ros2 param set /gait_node heading_kp 2.0`.
+
 ## Entrées
 
 | Topic | Type | Effet |

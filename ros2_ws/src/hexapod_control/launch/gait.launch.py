@@ -30,7 +30,7 @@ def generate_launch_description():
         has_foxglove = "false"
 
     robot_description = ParameterValue(Command([
-        "xacro ", PathJoinSubstitution([desc, "urdf", "hexapod.urdf.xacro"]), " footprint:=false",
+        "xacro ", PathJoinSubstitution([desc, "urdf", "hexapod.urdf.xacro"]), " footprint:=false use_imu:=true",
     ]), value_type=str)
 
     return LaunchDescription([

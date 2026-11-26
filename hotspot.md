@@ -149,6 +149,30 @@ ssh hexapode "sudo nmcli connection modify hexapode-ap wifi-sec.psk 'nouveau' &&
 
 ---
 
+## 3 bis. Tout sans câble, dès l'allumage
+
+Au démarrage de la Pi, **sans rien brancher** :
+
+| Quoi | Comment |
+|---|---|
+| Hotspot `Hexapode-ECE` | profil `hexapode-ap` en connexion automatique (câble branché ou non ; le câble reste prioritaire côté ROS) |
+| `leg_server` (servos) | service systemd `hexapode-leg-server` (relancé s'il s'arrête) |
+| Nœud IMU `/imu/data` | service systemd `hexapode-imu` |
+| Changement de liaison | dispatcher NetworkManager `90-hexapode-liaison` : câble branché / débranché → le nœud IMU est relancé sur la bonne liaison |
+
+Il suffit donc d'allumer le robot, puis sur le PC : `./hexapode.sh robot-distance`.
+
+Installation (une fois, déjà faite le 26/11/2026) et commandes utiles, sur la Pi :
+
+```bash
+sudo sh ~/Hexapode_ECE/ros2_ws/src/hexapod_bringup/systemd/install_pi_services.sh
+systemctl status hexapode-leg-server hexapode-imu
+journalctl -u hexapode-leg-server -f          # journal du leg_server
+sudo systemctl restart hexapode-leg-server    # ATTENTION : coupe le couple un instant
+```
+
+Les fichiers sont dans [`ros2_ws/src/hexapod_bringup/systemd/`](ros2_ws/src/hexapod_bringup/systemd).
+
 ## 4. Internet sur le PC pendant le Wi-Fi ?
 
 Le PC n'a qu'une carte Wi-Fi : sur le hotspot de la Pi, il n'est plus sur le Wi-Fi de

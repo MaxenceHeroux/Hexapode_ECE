@@ -1,0 +1,16 @@
+# Noeud IMU (carte Neuro IMU, /imu/data) demarre au boot de la Pi. Installe par install_pi_services.sh
+[Unit]
+Description=Hexapode : noeud IMU LSM6DSV16X (ROS 2)
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+User=hexa-pi
+ExecStartPre=/bin/sleep 5
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && source /home/hexa-pi/Hexapode_ECE/ros2_ws/hexapode_env.sh && exec ros2 launch hexapod_imu imu.launch.py'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

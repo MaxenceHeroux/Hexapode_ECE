@@ -99,6 +99,21 @@ Au démarrage, une position réelle un peu au-delà d'une butée (robot affaiss�
 dans les butées pour la rampe (message `positions hors butees au depart`), sans gel.
 Après un gel : relancer (il repart de la position réelle, avec la rampe).
 
+**Remise en route manuelle** (servos bloqués, en sécurité, couple coupé ou pont gelé) :
+touche **`r`** de la fenêtre « Actions hexapode », ou
+
+```bash
+ros2 service call /reset_servos std_srvs/srv/Trigger
+```
+
+`RESET ALL` des servos, puis rampe douce (`reset_ramp_time` 3 s) de la position réelle vers
+la pose de la marche ; le gel et les compteurs sont effacés.
+
+**Robot porté en l'air** : si la charge moyenne des fémurs au sol reste sous `air_load`
+(6 %) pendant `air_time` (0,6 s), toutes les pattes passent souples et sans punch
+(`air_slope`, `air_punch`) et `/robot_lifted` passe à vrai (la marche met sa stabilisation
+en pause) ; retour à la normale au-dessus de `ground_load` (12 %).
+
 **Couper le couple** (robot relâché, il s'affaisse) :
 
 ```bash

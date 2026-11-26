@@ -9,10 +9,30 @@ gait_node:
     stance_radius: 0.12   # m : ecart pied <-> axe de hanche VOULU ; adapte a la hauteur (butees des
                           #     tibias : 120 mm des 130 mm de haut, 130 a 120, 155 a 90, 175 a 50)
     step_height: 0.03     # m : levee des pattes en vol
-    cycle_time: 0.8       # s : un cycle complet (2 pas de trepied) a vitesse max
-    max_linear: 0.20      # m/s
-    max_angular: 0.8      # rad/s
+    cycle_time: 0.55      # s : cycle le plus rapide (vitesse max) ; jusqu'a 2x plus lent a basse vitesse
+    max_linear: 0.30      # m/s (vitesse reellement atteignable affichee au demarrage)
+    max_angular: 1.2      # rad/s (marge pour l'aide a la rotation : les pieds patinent)
     step_reach: 0.045     # m : demi-pas max (pas jusqu'a 9 cm) ; plus grand = pieds plus ecartes
+    gait: tripod          # tripod (+ recouvrement) : le meilleur en rotation le 26/11 (65-74 %) | tetrapod | wave
+    duty: 0.0             # fraction du cycle au sol ; 0 = defaut de l'allure (0.6 / 0.72 / 0.86, avec recouvrement)
+    # Stabilisation par l'IMU (/imu/data) - voir docs/gait_node.md
+    heading_hold: true    # avancer droit : garde le cap tant qu'on ne demande pas de tourner
+    heading_kp: 1.2
+    heading_ki: 0.2
+    heading_max: 0.3      # rad/s : correction de cap max
+    turn_assist: true     # rotation asservie au gyroscope : compense le patinage des pieds
+    turn_kp: 0.5
+    turn_ki: 1.5
+    turn_boost: 1.5       # commande jusqu'a 2,5 x la rotation demandee (dans max_angular)
+    level: true           # compensation active : corps horizontal si le sol penche / bouge (lent)
+    level_kp: 0.3
+    level_ki: 3.0
+    level_max_deg: 10.0   # inclinaison max donnee au corps
+    sag_comp: 0.003       # m : pattes au sol 3 mm plus bas pendant qu'un trepied est en l'air
+    fall_deg: 35.0        # inclinaison au-dela de laquelle la marche s'arrete
+    drift_comp: -0.10     # derive en crabe mesuree le 26/11/2026 : ~10 cm a gauche par metre
     cmd_timeout: 0.5      # s sans /cmd_vel -> arret
+    accel: 0.6            # m/s2 : reactivite aux changements de vitesse
+    ang_accel: 2.5        # rad/s2
     height_gain: 0.04     # t / b : vitesse de la hauteur = linear.z x 0.04 (clavier 0.10 -> 4 mm/s)
     height_rate: 0.01     # m/s : vitesse max de changement de hauteur (rampe, tous moyens confondus)

@@ -1,0 +1,8 @@
+# Calibration de l'IMU (LSM6DSV16X). GENERE par : ros2 run hexapod_imu calibrate_imu
+# 2026-11-26, 29.4 degC, 1246 mesures, robot pose a plat immobile
+# montage : avant du robot = -X du capteur (avant souleve -> gravite sur -X), carte a plat
+# gravite mesuree 9.928 m/s2
+gyro_bias: [-0.004086, -0.003510, 0.002320]   # rad/s, repere capteur
+acc_scale: 0.987772
+mount_rpy: [0.000000, 0.000000, 3.141593]   # rad, capteur -> base_link
+level_rpy: [0.017738, -0.020121]   # rad, correction de niveau
