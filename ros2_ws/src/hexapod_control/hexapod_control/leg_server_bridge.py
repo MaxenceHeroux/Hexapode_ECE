@@ -31,14 +31,40 @@ SAFETY_BITS = {0x01: "tension", 0x04: "surchauffe", 0x20: "surcharge", 0x08: "ho
 
 
 class LegServer:
-    def __init__(self, host, port):
-        self.sock = socket.create_connection((host, port), timeout=5)
+    """Client TCP du leg_server. Sur une liaison qui perd des paquets, une reponse qui
+    tarde fait rouvrir la connexion (la reponse en retard ne doit pas etre lue a la
+    place de la suivante) ; l'appelant decide de reessayer ou non."""
+
+    def __init__(self, host, port, timeout=1.5):
+        self.host, self.port, self.timeout = host, port, timeout
+        self.sock = None
+        self.connect()
+
+    def connect(self):
+        self.close()
+        self.sock = socket.create_connection((self.host, self.port), timeout=5)
+        self.sock.settimeout(self.timeout)
         self.f = self.sock.makefile("r", encoding="utf-8")
 
+    def close(self):
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
+
     def rpc(self, line):
-        self.sock.sendall((line + "\n").encode())
-        rep = self.f.readline()
+        try:
+            if self.sock is None:
+                self.connect()
+            self.sock.sendall((line + "\n").encode())
+            rep = self.f.readline()
+        except (OSError, ValueError) as e:              # timeout, connexion coupee
+            self.close()
+            raise ConnectionError(f"{type(e).__name__} : {e}")
         if not rep:
+            self.close()
             raise ConnectionError("leg_server deconnecte")
         return rep.strip()
 
@@ -67,12 +93,23 @@ class Bridge(Node):
         # consigne suivante (GOALSPD du leg_server), x speed_gain, bornee.
         p("speed_gain", 1.3)
         p("min_speed", 20)
-        # Compliance selon la phase de la patte (/leg_phases de gait_node) :
-        # au sol (porte le robot) = raide ; en l'air = souple et doux.
-        p("stance_slope", 8)
-        p("stance_punch", 100)
-        p("swing_slope", 64)
-        p("swing_punch", 32)
+        # Compliance selon la phase de la patte (/leg_phases de gait_node), par articulation
+        # [coxa, femur, tibia] : au sol (porte le robot) femur / tibia raides ; en l'air tout
+        # souple et sans gros punch (sinon les servos du haut de la patte tremblent).
+        p("stance_slope", [32, 8, 8])
+        p("stance_punch", [32, 100, 100])
+        p("swing_slope", [64, 128, 64])
+        p("swing_punch", [16, 16, 24])
+        # Auto-reparation au lieu du gel : un servo en alarme (surcharge...) ou bloque loin de
+        # sa consigne (> stuck_err unites pendant stuck_time s) est remis en route (RESET) ;
+        # au-dela de max_resets en reset_window s, ou en surchauffe, ou absent plus de
+        # absent_time s, le pont gele.
+        p("stuck_err", 60)
+        p("stuck_time", 1.0)
+        p("max_resets", 6)
+        p("reset_window", 30.0)
+        p("absent_time", 2.0)
+        p("link_timeout", 4.0)     # s sans reponse du leg_server (liaison qui perd des paquets) avant gel
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         self.send = bool(g("send"))
         self.legs = load_legs(g("legs_yaml") or None)
@@ -92,11 +129,21 @@ class Bridge(Node):
         if missing:
             raise RuntimeError(f"servos absents : {missing}")
         self.check(st, startup=True)
-        self.start_raw = {sid: st[sid]["pos"] for sid in self.limits}
+        # Depart = position reelle, ramenee dans les butees : robot affaisse (couple coupe),
+        # un servo peut etre 1 ou 2 unites au-dela ; il y reviendra pendant la rampe.
+        self.start_raw = {sid: min(self.limits[sid][1], max(self.limits[sid][0], st[sid]["pos"]))
+                          for sid in self.limits}
+        out = {sid: st[sid]["pos"] for sid in self.limits if st[sid]["pos"] != self.start_raw[sid]}
+        if out:
+            self.get_logger().info(f"positions hors butees au depart (ramenees dans les butees) : {out}")
         self.target = None
         self.frozen = None
         self.t_ramp = None
         self.over = {}
+        self.stuck = {}
+        self.absent_since = {}
+        self.resets = []
+        self.link_lost = None
         self.cycle = 0
         self.last_goal = dict(self.start_raw)
         self.leg_ids = {lg.n: [self.servo[nm][0] for nm in lg.joint_names] for lg in self.legs}
@@ -155,13 +202,14 @@ class Bridge(Node):
         g = lambda n: self.get_parameter(n).value  # noqa: E731
         slope, punch = [], []
         for n, ph in self.phases.items():
-            want = (g("stance_slope"), g("stance_punch")) if ph else (g("swing_slope"), g("swing_punch"))
+            sl, pu = (g("stance_slope"), g("stance_punch")) if ph else (g("swing_slope"), g("swing_punch"))
+            want = (tuple(sl), tuple(pu))
             if self.applied.get(n) == want:
                 continue
             self.applied[n] = want
-            for sid in self.leg_ids[n]:
-                slope.append(f"{sid} {want[0] | (want[0] << 8)}")       # pentes CW et CCW (reg. 28-29)
-                punch.append(f"{sid} {want[1]}")
+            for k, sid in enumerate(self.leg_ids[n]):        # k : 0 coxa, 1 femur, 2 tibia
+                slope.append(f"{sid} {sl[k] | (sl[k] << 8)}")       # pentes CW et CCW (reg. 28-29)
+                punch.append(f"{sid} {pu[k]}")
         if slope:
             self.ls.rpc("SYNCW 28 2 " + " ".join(slope))
             self.ls.rpc("SYNCW 48 2 " + " ".join(punch))
@@ -193,6 +241,46 @@ class Bridge(Node):
                 self.over.pop(sid, None)
         return None
 
+    def supervise(self, st, goals):
+        """Surveillance en marche : repare ce qui peut l'etre (RESET d'un servo en alarme ou
+        bloque), gele seulement si c'est grave ou si les reparations s'enchainent."""
+        g = lambda n: self.get_parameter(n).value  # noqa: E731
+        now = time.time()
+        to_reset = {}
+        for sid in self.limits:
+            s = st.get(sid)
+            if not s or not s.get("ok"):                     # USB qui decroche : on attend un peu
+                t0 = self.absent_since.setdefault(sid, now)
+                if now - t0 > g("absent_time"):
+                    return f"ID {sid} ne repond plus depuis {g('absent_time')} s"
+                continue
+            self.absent_since.pop(sid, None)
+            if s["temp"] >= g("temp_max"):
+                return f"ID {sid} a {s['temp']} degC"
+            bits = [t for b, t in SAFETY_BITS.items() if s.get("err", 0) & b]
+            if bits or s.get("tlimit") == 0 or not s.get("torque"):
+                to_reset[sid] = ", ".join(bits) or ("limite de couple 0" if s.get("tlimit") == 0 else "couple coupe")
+                continue
+            if sid in goals and abs(s["pos"] - goals[sid]) > g("stuck_err"):
+                t0 = self.stuck.setdefault(sid, now)
+                if now - t0 > g("stuck_time"):
+                    to_reset[sid] = f"bloque a {s['pos']} pour {goals[sid]}"
+            else:
+                self.stuck.pop(sid, None)
+            load = abs(s["load"]) * 100 / 1023
+            if load > g("max_load"):
+                self.get_logger().warn(f"ID {sid} a {load:.0f} % de charge", throttle_duration_sec=2.0)
+        if to_reset:
+            self.resets = [t for t in self.resets if now - t < g("reset_window")] + [now] * len(to_reset)
+            if len(self.resets) > g("max_resets"):
+                return f"trop de remises en route ({len(self.resets)} en {g('reset_window'):.0f} s) : {to_reset}"
+            for sid, why in to_reset.items():
+                rep = self.ls.rpc(f"RESET {sid}")
+                self.stuck.pop(sid, None)
+                self.applied.clear()                          # RESET remet la compliance a reappliquer
+                self.get_logger().warn(f"ID {sid} remis en route ({why}) -> {rep}")
+        return None
+
     def freeze(self, why):
         if self.frozen is None:
             self.frozen = why
@@ -207,7 +295,9 @@ class Bridge(Node):
         k = min(1.0, (time.time() - self.t_ramp) / self.get_parameter("ramp_time").value)
         goals = {sid: int(round(self.start_raw[sid] + (self.target[sid] - self.start_raw[sid]) * k))
                  for sid in self.target}
-        bad = [sid for sid, v in goals.items() if not self.limits[sid][0] <= v <= self.limits[sid][1]]
+        # Seule la pose demandee par la marche peut etre hors butees (la rampe part de
+        # positions deja ramenees dans les butees) : on la verifie elle.
+        bad = [sid for sid, v in self.target.items() if not self.limits[sid][0] <= v <= self.limits[sid][1]]
         if bad:
             self.freeze(f"consignes hors butees pour {sorted(bad)}")
             return
@@ -230,20 +320,30 @@ class Bridge(Node):
             self.cycle += 1
             if self.cycle % 5 == 0:                     # STATE ~40 ms : 5 Hz suffit
                 st = self.ls.state()
-                why = self.check(st)
+                why = self.supervise(st, goals) if self.send else self.check(st)
                 if why:
                     self.freeze(why)
                     return
                 if self.cycle % 50 == 0:
-                    err = max(abs(st[i]["pos"] - goals[i]) for i in goals)
-                    load = max(abs(st[i]["load"]) * 100 / 1023 for i in goals if st[i].get("torque")) \
-                        if any(st[i].get("torque") for i in goals) else 0
+                    err = max((abs(st[i]["pos"] - goals[i]) for i in goals if st.get(i, {}).get("ok")), default=0)
+                    load = max((abs(st[i]["load"]) * 100 / 1023 for i in goals
+                                if st.get(i, {}).get("ok") and st[i].get("torque")), default=0)
                     self.get_logger().info(
                         f"{'rampe %.0f %%' % (k * 100) if k < 1 else 'suivi'} | ecart max "
                         f"consigne/position {err} | charge max {load:.0f} % | "
                         f"{min(s['volt'] for s in st.values() if s.get('ok')) / 10:.1f} V")
+            if self.link_lost is not None:
+                self.get_logger().info(f"liaison leg_server retablie apres {time.time() - self.link_lost:.1f} s")
+                self.link_lost = None
         except (OSError, RuntimeError, ConnectionError) as e:
-            self.freeze(f"liaison leg_server : {e}")
+            # Liaison qui perd des paquets / U2D2 qui se reconnecte : on reessaie au tick
+            # suivant (connexion rouverte) ; gel seulement si ca dure plus de link_timeout.
+            now = time.time()
+            if self.link_lost is None:
+                self.link_lost = now
+                self.get_logger().warn(f"liaison leg_server : {e} -> nouvel essai")
+            elif now - self.link_lost > self.get_parameter("link_timeout").value:
+                self.freeze(f"liaison leg_server perdue depuis {now - self.link_lost:.1f} s ({e})")
 
 
 def main():

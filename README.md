@@ -14,14 +14,15 @@ cd ~/Hexapode2026/Hexapode_ECE/ros2_ws
 ./hexapode.sh                   # simulation : marche + Foxglove + clavier (aucun servo ne bouge)
 ./hexapode.sh dry               # + pont vers le robot SANS envoi (vérifie servos et butées)
 ./hexapode.sh robot             # le robot se lève puis marche — PC et Pi reliés par CÂBLE
-./hexapode.sh robot-distance    # pareil SANS CÂBLE : hotspot Wi-Fi du PC (voir hotspot.md)
+./hexapode.sh robot-distance    # pareil SANS CÂBLE : le PC rejoint le hotspot Wi-Fi de la Pi (voir hotspot.md)
 ./hexapode.sh dry-distance      # vérification sans câble
 ```
 
 Le script règle l'environnement ROS (CycloneDDS, liaison câble ou Wi-Fi), arrête une
 session oubliée, ouvre **Foxglove** (déjà connecté) et une fenêtre **« Teleop hexapode »**,
 puis lance la marche et, selon le mode, le pont vers le robot. `robot-distance` allume en
-plus le hotspot, attend la Pi et démarre `leg_server` dessus si besoin.
+au hotspot de la Pi (sauf si le câble est branché : il reste prioritaire), attend la Pi et
+démarre `leg_server` dessus si besoin.
 
 **Piloter** (clavier AZERTY, dans « Teleop hexapode ») :
 
@@ -36,7 +37,8 @@ plus le hotspot, attend la Pi et démarre `leg_server` dessus si besoin.
 
 **Arrêter** : Ctrl+C dans le terminal du lancement → le robot se fige, couple gardé.
 Le relâcher : `nc 192.168.137.10 5555` (ou `10.42.0.10` en Wi-Fi) puis `ESTOP`.
-Après `robot-distance`, retrouver internet : `nmcli connection down hexapode-hotspot`.
+Après `robot-distance`, Ctrl+C **ramène aussi le PC sur un Wi-Fi avec internet** (ou à tout
+moment : `./hexapode.sh internet`).
 
 Avant un essai sur le robot : batterie ≥ 11 V, robot posé au sol, quelqu'un à côté de
 l'alimentation. Détails : [ros2_ws/src/hexapod_control/docs/lancement.md](ros2_ws/src/hexapod_control/docs/lancement.md).
@@ -46,7 +48,7 @@ l'alimentation. Détails : [ros2_ws/src/hexapod_control/docs/lancement.md](ros2_
 | Document | Contenu |
 |---|---|
 | [setup.md](setup.md) | Mise en route de la Raspberry Pi : connexion SSH (`ssh hexapode`), réseau et partage de connexion par câble, VS Code, mises à jour, sauvegardes, synchronisation git PC ↔ Pi |
-| [hotspot.md](hotspot.md) | **Sans câble** : hotspot Wi-Fi du PC → Pi (`ssh hexapode-wifi`, `hexapode.sh robot-distance`), internet, dépannage |
+| [hotspot.md](hotspot.md) | **Sans câble** : hotspot Wi-Fi de la Pi, le PC s'y connecte (`ssh hexapode-wifi`, `hexapode.sh robot-distance`) ; câble prioritaire ; dépannage |
 | [ros2_ws/README.md](ros2_ws/README.md) | Espace de travail ROS 2 : environnement, paquets, lancement, Foxglove |
 | [ros2_ws/src/hexapod_control/docs/](ros2_ws/src/hexapod_control/docs) | Nœuds ROS : [lancement](ros2_ws/src/hexapod_control/docs/lancement.md), [marche `gait_node`](ros2_ws/src/hexapod_control/docs/gait_node.md), [pont `leg_server_bridge`](ros2_ws/src/hexapod_control/docs/leg_server_bridge.md) |
 | [Dyna_test/dyna.md](Dyna_test/dyna.md) | Servos Dynamixel : `leg_server` (Pi) et son protocole, interface graphique des 6 pattes et cinématique (PC), réglages des servos, port `/dev/u2d2` |

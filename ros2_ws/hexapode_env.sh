@@ -10,7 +10,7 @@ export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export CYCLONEDDS_URI="file://${_hexa_ws}/src/hexapod_bringup/config/cyclonedds.xml"
 
 # Interface vers l'autre machine : le cable (192.168.137.x : eth0 sur la Pi, adaptateur USB
-# sur le PC) en priorite, sinon le hotspot Wi-Fi du PC (10.42.0.x, voir hotspot.md).
+# sur le PC) en priorite, sinon le hotspot Wi-Fi de la Pi (10.42.0.x, voir hotspot.md).
 _hexa_ips="$(ip -o -4 addr show 2>/dev/null)"
 # (HEXAPODE_LINK=wifi : hotspot en priorite, utilise par hexapode.sh robot-distance)
 HEXAPODE_IFACE=""

@@ -50,9 +50,14 @@ La calibration (`Dyna_test/gui/leg_gui_config.json` → `legs.yaml`) doit être 
    pile à la consigne suivante (× `speed_gain`). Le servo glisse d'une consigne à l'autre
    au lieu de foncer puis s'arrêter : mouvement fluide, et la vitesse demandée au robot est
    bien suivie. Toutes les 2 s : écart consigne / position, charge max, tension.
-5. **Compliance selon la phase** (`/leg_phases` de `gait_node`) : une patte **au sol** (elle
-   porte le robot) est raide (pente `stance_slope` 8, punch `stance_punch` 100) ; une patte
-   **en l'air** est souple et douce (pente `swing_slope` 64, punch `swing_punch` 32).
+5. **Compliance selon la phase** (`/leg_phases` de `gait_node`), par articulation
+   [coxa, fémur, tibia] :
+
+   | Patte | Pente | Punch | Pourquoi |
+   |---|---|---|---|
+   | **au sol** (porte le robot) | 32 / 8 / 8 | 32 / 100 / 100 | fémur et tibia raides pour tenir le poids ; la coxa ne porte pas |
+   | **en l'air** | 64 / 128 / 64 | 16 / 16 / 24 | souple, petit punch : pas de tremblement des servos du haut de la patte |
+
    Changement envoyé en 2 `SYNCW` seulement quand une patte change de phase.
 
 Avec un ancien `leg_server` (sans `GOALSPD` / `SYNCW`), le pont prévient et revient à
@@ -64,22 +69,35 @@ inversé (`inverted` dans `legs.yaml`).
 
 ---
 
-## Sécurité : le GEL
+## Sécurité : réparer d'abord, geler en dernier recours
 
-Le pont **gèle** (n'envoie plus aucune consigne, **le couple reste actif** : le robot
-n'est pas lâché) si :
+Toutes les 0,2 s, le pont lit l'état des servos (`STATE`).
+
+**Remise en route automatique** (`RESET` du servo, puis il reprend la marche) quand un
+servo :
+
+| Cas | Seuil |
+|---|---|
+| est en alarme (surcharge, tension, hors plage), limite de couple à 0 ou couple coupé | immédiat |
+| est **bloqué loin de sa consigne** (décalage simulation / réalité) | écart > `stuck_err` (60 unités ≈ 18°) pendant plus de `stuck_time` (1 s) |
+
+Une charge > `max_load` (85 %) n'est plus qu'un avertissement : si elle dure, le servo se
+met lui-même en sécurité et il est remis en route.
+
+**Gel** (plus aucune consigne, **le couple reste actif** : le robot n'est pas lâché) :
 
 | Cause | Seuil |
 |---|---|
-| consigne hors des butées EEPROM d'un servo | butées lues au démarrage |
-| servo qui ne répond plus | |
-| servo en alarme (tension, surchauffe, surcharge, hors plage) ou limite de couple à 0 | |
+| trop de remises en route (le problème n'est pas passager) | plus de `max_resets` (6) en `reset_window` (30 s) |
 | température | ≥ `temp_max` (62 °C) |
-| charge | > `max_load` (85 %) pendant plus de `load_time` (0,6 s) |
+| servo qui ne répond plus (USB de l'U2D2 qui décroche : on attend d'abord) | plus de `absent_time` (2 s) |
+| pose demandée par la marche hors des butées EEPROM | butées lues au démarrage |
 | liaison TCP perdue | |
 | Ctrl+C | |
 
-Après un gel : relancer le pont (il repart de la position réelle, avec la rampe).
+Au démarrage, une position réelle un peu au-delà d'une butée (robot affaissé) est ramenée
+dans les butées pour la rampe (message `positions hors butees au depart`), sans gel.
+Après un gel : relancer (il repart de la position réelle, avec la rampe).
 
 **Couper le couple** (robot relâché, il s'affaisse) :
 
@@ -100,11 +118,14 @@ Sortir un servo du mode sécurité : `RESET ALL` dans la même connexion
 | `host`, `port` | `192.168.137.10`, 5555 | `leg_server` |
 | `rate` | 25 Hz | fréquence d'envoi (lecture d'état à `rate` / 5) |
 | `speed` | 100 | vitesse des servos au démarrage (et si `leg_server` ancien) |
-| `speed_gain`, `min_speed` | 1,3 ; 20 | vitesse envoyée = vitesse nécessaire × gain, au moins `min_speed` |
-| `stance_slope`, `stance_punch` | 8 ; 100 | compliance d'une patte au sol (raide) |
-| `swing_slope`, `swing_punch` | 64 ; 32 | compliance d'une patte en l'air (souple) |
+| `speed_gain`, `min_speed` | 1,5 ; 30 | vitesse envoyée = vitesse nécessaire × gain, au moins `min_speed` |
+| `stance_slope`, `stance_punch` | [32, 8, 8] ; [32, 100, 100] | compliance [coxa, fémur, tibia] d'une patte au sol |
+| `swing_slope`, `swing_punch` | [64, 128, 64] ; [16, 16, 24] | compliance d'une patte en l'air |
+| `stuck_err`, `stuck_time` | 60 ; 1 s | servo bloqué → remise en route |
+| `max_resets`, `reset_window` | 6 ; 30 s | au-delà : gel |
+| `absent_time` | 2 s | servo absent avant gel |
 | `ramp_time` | 8 s | durée du lever au démarrage |
-| `max_load`, `load_time` | 85 %, 0,6 s | gel en surcharge |
+| `max_load` | 85 % | avertissement de charge |
 | `temp_max` | 62 °C | gel en surchauffe |
 | `legs_yaml` | (vide) | autre `legs.yaml` |
 

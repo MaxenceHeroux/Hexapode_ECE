@@ -7,12 +7,20 @@ leg_server_bridge:
     rate: 25.0               # Hz : GOALSID ; STATE (securite) a rate / 5
     speed: 100               # vitesse des servos (1..1023), limite les a-coups
     ramp_time: 8.0           # s : position reelle -> pose de la marche au demarrage
-    max_load: 85.0           # % : au-dela pendant load_time -> gel
+    max_load: 85.0           # % : au-dela -> avertissement (le servo se protege seul -> RESET auto)
     load_time: 0.6           # s
     temp_max: 62             # degC -> gel
     speed_gain: 1.5          # vitesse servo = vitesse necessaire pour la consigne suivante x gain
     min_speed: 30
-    stance_slope: 8          # patte au sol (porte le robot) : raide
-    stance_punch: 100
-    swing_slope: 64          # patte en l'air : souple, mouvement doux
-    swing_punch: 32
+    # compliance [coxa, femur, tibia] selon la phase de la patte
+    stance_slope: [32, 8, 8]       # au sol (porte le robot) : femur / tibia raides
+    stance_punch: [32, 100, 100]
+    swing_slope: [64, 128, 64]     # en l'air : souple, petit punch (pas de tremblement)
+    swing_punch: [16, 16, 24]
+    # auto-reparation au lieu du gel
+    stuck_err: 60            # unites (~18 deg) : servo loin de sa consigne...
+    stuck_time: 1.0          # s : ... depuis plus longtemps -> RESET du servo
+    max_resets: 6            # remises en route max dans reset_window s, sinon gel
+    reset_window: 30.0
+    absent_time: 2.0         # s sans reponse d'un servo (USB qui decroche) avant gel
+    link_timeout: 4.0        # s sans reponse du leg_server (cable qui perd des paquets) avant gel ; avant : reconnexion et nouvel essai
